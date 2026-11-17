@@ -49,6 +49,8 @@ Unity Hub 本身是 Windows AppX 包，系统可能继续将 Hub 外壳放在 C 
 
 如果尚未安装 Editor，先运行 `.\tools\install-unity-editor.ps1`。该脚本把临时目录、Hub 下载缓存、Editor 安装目录和 Android 模块都固定在 D 盘，并支持中断后继续下载。
 
+如果 Unity Hub 报告“无法遍历该路径，因为它包含不受信任的装入点”，运行 `.\tools\repair-unity-hub.ps1`。脚本会恢复 Hub 的普通配置目录，并只把下载缓存保留在 D 盘。
+
 也可以在 Unity Editor 中使用 `Volleyball Coach/生成示例场景`，再从 Build Settings 选择 Android 构建。构建日志保存到 `Builds/android-build.log`，APK 输出到 `Builds/VolleyballCoach.apk`。
 
 ## 资产与许可
