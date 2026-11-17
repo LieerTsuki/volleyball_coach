@@ -38,6 +38,8 @@ Unity 6 LTS 的离线排球教练战术板样片。工程把战术站位、跑�
 
 本机已检测到 Android Studio（`D:\Android_studio\bin\studio64.exe`）和 Android SDK/ADB（`C:\Users\LENOVO\AppData\Local\Android\Sdk`）。Android Studio 可打开 Unity 导出的 Gradle 工程；实际 APK 仍需 Unity 6 Editor 先执行场景和资源构建。
 
+Unity Hub 本身是 Windows AppX 包，系统可能继续将 Hub 外壳放在 C 盘；请在 Unity Hub 的 **Preferences → Installs** 中把 Editor 安装位置明确设置为 `D:\Unity\Hub`，并把项目和构建缓存保留在 D 盘。仓库脚本默认查找 `D:\Unity\Hub\Editor\6000.0.23f1\Editor\Unity.exe`。
+
 安装 Unity `6000.0.23f1` 后，在 PowerShell 中运行：
 
 ```powershell
