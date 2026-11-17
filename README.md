@@ -34,6 +34,19 @@ Unity 6 LTS 的离线排球教练战术板样片。工程把战术站位、跑�
 
 在具备 Unity/Android 环境后，先运行测试，再在 Player Settings 中选择 Android、横屏，并按 prompt 的触球帧误差目标（≤5 cm）记录验收日志。
 
+## 构建和安装 APK
+
+本机已检测到 Android Studio（`D:\Android_studio\bin\studio64.exe`）和 Android SDK/ADB（`C:\Users\LENOVO\AppData\Local\Android\Sdk`）。Android Studio 可打开 Unity 导出的 Gradle 工程；实际 APK 仍需 Unity 6 Editor 先执行场景和资源构建。
+
+安装 Unity `6000.0.23f1` 后，在 PowerShell 中运行：
+
+```powershell
+.\tools\build-android.ps1 -UnityEditor 'C:\path\to\Unity.exe'
+.\tools\install-android-apk.ps1
+```
+
+也可以在 Unity Editor 中使用 `Volleyball Coach/生成示例场景`，再从 Build Settings 选择 Android 构建。构建日志保存到 `Builds/android-build.log`，APK 输出到 `Builds/VolleyballCoach.apk`。
+
 ## 资产与许可
 
 首版角色、动作和材质均由代码生成，没有运行时联网或外部模型依赖。若后续替换为外部 Humanoid/动画，需要在 `Assets/Volleyball3D/Content/ASSET_LICENSES.md` 记录来源、版本和许可。
