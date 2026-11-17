@@ -1,0 +1,21 @@
+PlayerSettings:
+  productGUID: 2f2c2d2b56b74738a34c9c0a1b60b0df
+  productName: Volleyball Coach 3D
+  companyName: LieerTsuki
+  defaultScreenOrientation: 3
+  allowedAutorotateToPortrait: 0
+  allowedAutorotateToPortraitUpsideDown: 0
+  allowedAutorotateToLandscapeRight: 1
+  allowedAutorotateToLandscapeLeft: 1
+  applicationIdentifier:
+    Standalone: com.lieertsuki.volleyballcoach
+    Android: com.lieertsuki.volleyballcoach
+    iPhone: com.lieertsuki.volleyballcoach
+  activeInputHandler: 1
+  scriptingBackend:
+    Android: 1
+  apiCompatibilityLevelPerPlatform:
+    Standalone: 6
+    Android: 6
+  bundleVersion: 0.1.0
+  AndroidBundleVersionCode: 1
