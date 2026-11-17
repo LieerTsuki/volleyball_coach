@@ -15,7 +15,7 @@ static func evaluate_at(tactic: Dictionary, time_ms: int) -> Dictionary:
 	if active != null:
 		var a := resolve_endpoint(tactic, active.get("from", {}))
 		var b := resolve_endpoint(tactic, active.get("to", {}))
-		var u := clamp(float(time_ms - int(active.startMs)) / max(1.0, float(int(active.endMs) - int(active.startMs))), 0.0, 1.0)
+		var u: float = clampf(float(time_ms - int(active.startMs)) / maxf(1.0, float(int(active.endMs) - int(active.startMs))), 0.0, 1.0)
 		state.ball = {"active": true, "position": a.lerp(b, u) + Vector3.UP * 4.0 * float(active.get("arcHeightM", 0.0)) * u * (1.0 - u), "type": str(active.get("type", "")), "progress": u}
 	return state
 
@@ -28,7 +28,7 @@ static func evaluate_player_position(tactic: Dictionary, player_id: String, time
 		var start := int(move.get("startMs", 0)); var end := int(move.get("endMs", 0)); var points: Array = move.get("waypoints", [])
 		if time_ms < start: break
 		if time_ms >= end: position = _point(points.back()); continue
-		var u := clamp(float(time_ms - start) / max(1.0, float(end - start)), 0.0, 1.0)
+		var u: float = clampf(float(time_ms - start) / maxf(1.0, float(end - start)), 0.0, 1.0)
 		var target := _point(points.back()) if not points.is_empty() else position
 		position = position.lerp(target, u); break
 	return position

@@ -6,7 +6,7 @@ func _init() -> void: DirAccess.make_dir_recursive_absolute(ROOT)
 
 func ensure_sample() -> Dictionary:
 	var sample := TacticModels.sample_tactic()
-	var path := ROOT + "/" + sample.id + ".json"
+	var path: String = ROOT + "/" + str(sample.id) + ".json"
 	if not FileAccess.file_exists(path): save(sample)
 	return sample
 

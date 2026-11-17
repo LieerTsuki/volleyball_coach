@@ -17,3 +17,4 @@ MemoryCaptures/
 .godot/
 Builds/
 GodotTemp/
+*.import

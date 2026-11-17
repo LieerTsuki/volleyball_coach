@@ -25,7 +25,7 @@ Android Studio 已提供 SDK，Godot 还需要配置 OpenJDK 17、Android SDK、
 
 ```powershell
 cd D:\codex_work\coach
-.\tools\build-godot-android.ps1 -Godot 'D:\Godot\godot.exe'
+.\tools\build-godot-android.ps1 -Godot 'D:\Godot\Godot_v4.7.2-stable_win64_console.exe'
 .\tools\install-android-apk.ps1 -ApkPath 'D:\codex_work\coach\Builds\VolleyballCoach.apk'
 ```
 
