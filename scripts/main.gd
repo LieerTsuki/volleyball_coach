@@ -37,7 +37,9 @@ func _apply_at(time_ms: int) -> void:
 	var state := TacticEvaluator.evaluate_at(tactic, time_ms)
 	for player_state in state.players:
 		if actors.has(player_state.player_id): actors[player_state.player_id].apply_state(player_state)
-	ball.visible = bool(state.ball.active); if ball.visible: ball.position = state.ball.position
+	ball.visible = bool(state.ball.active)
+	if ball.visible:
+		ball.position = state.ball.position
 	if timeline: timeline.set_value_no_signal(time_ms)
 	if time_label: time_label.text = "%02d:%03d" % [time_ms / 1000, time_ms % 1000]
 	if phase_label: phase_label.text = "当前阶段 · " + str(tactic.phases[state.phase_index].label)
