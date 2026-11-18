@@ -12,9 +12,11 @@ func _ready() -> void:
 	editor = TacticEditor2D.new()
 	add_child(editor)
 	editor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	editor.set_repository(repository)
 	editor.set_tactic(tactic)
 	editor.replay_requested.connect(_open_replay)
 	editor.save_requested.connect(_save_tactic)
+	editor.document_changed.connect(_on_document_changed)
 
 	replay = TacticReplay3D.new()
 	add_child(replay)
@@ -36,6 +38,10 @@ func _open_editor() -> void:
 	editor.set_tactic(tactic)
 
 func _save_tactic() -> void:
+	repository.save(tactic)
+
+func _on_document_changed() -> void:
+	tactic = editor.tactic
 	repository.save(tactic)
 
 func _on_viewport_resized() -> void:

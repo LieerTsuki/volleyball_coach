@@ -7,8 +7,33 @@ func _init() -> void: DirAccess.make_dir_recursive_absolute(ROOT)
 func ensure_sample() -> Dictionary:
 	var sample := TacticModels.sample_tactic()
 	var path: String = ROOT + "/" + str(sample.id) + ".json"
-	if not FileAccess.file_exists(path): save(sample)
+	if not FileAccess.file_exists(path):
+		save(sample)
+	else:
+		var stored = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if stored is Dictionary:
+			return TacticModels.ensure_frames(stored)
 	return sample
+
+func create_blank(title: String = "未命名战术") -> Dictionary:
+	var tactic := TacticModels.blank_tactic(title)
+	save(tactic)
+	return tactic
+
+func load_by_id(tactic_id: String) -> Dictionary:
+	var path := ROOT + "/" + tactic_id + ".json"
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return TacticModels.ensure_frames(parsed) if parsed is Dictionary else {}
+
+func delete_tactic(tactic_id: String) -> bool:
+	if tactic_id == "sample-three-receiver-fast-middle":
+		return false
+	var path := ROOT + "/" + tactic_id + ".json"
+	if not FileAccess.file_exists(path):
+		return false
+	return DirAccess.remove_absolute(path) == OK
 
 func save(tactic: Dictionary) -> void:
 	var path := ROOT + "/" + str(tactic.id) + ".json"

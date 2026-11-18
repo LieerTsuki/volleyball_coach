@@ -11,8 +11,8 @@ static func sample_tactic() -> Dictionary:
 		"schemaVersion": 1, "id": "sample-three-receiver-fast-middle", "title": "三人接发 · 副攻快球掩护 · 四号位进攻", "notes": "Godot 内置可播放示例", "createdAt": now, "updatedAt": now,
 		"courtConfig": default_court(),
 		"players": [
-			{"id":"p1","jerseyNumber":"1","role":"二传","isReceiver":false}, {"id":"p2","jerseyNumber":"2","role":"主攻","isReceiver":true}, {"id":"p3","jerseyNumber":"3","role":"副攻","isReceiver":false},
-			{"id":"p4","jerseyNumber":"4","role":"主攻","isReceiver":true}, {"id":"p5","jerseyNumber":"5","role":"接应","isReceiver":false}, {"id":"p6","jerseyNumber":"6","role":"自由人","isReceiver":true}
+			{"id":"p1","jerseyNumber":"1","name":"李","role":"二传","isReceiver":false}, {"id":"p2","jerseyNumber":"2","name":"许","role":"主攻","isReceiver":true}, {"id":"p3","jerseyNumber":"3","name":"彭","role":"副攻","isReceiver":false},
+			{"id":"p4","jerseyNumber":"4","name":"余","role":"主攻","isReceiver":true}, {"id":"p5","jerseyNumber":"5","name":"彭","role":"接应","isReceiver":false}, {"id":"p6","jerseyNumber":"6","name":"谢","role":"自由人","isReceiver":true}
 		],
 		"initialFormation": [
 			{"playerId":"p1","x":2.8,"z":-2.6,"yawDeg":180.0}, {"playerId":"p2","x":-3.2,"z":-5.6,"yawDeg":160.0}, {"playerId":"p3","x":-1.1,"z":-2.0,"yawDeg":180.0},
@@ -54,6 +54,26 @@ static func ensure_frames(tactic: Dictionary) -> Dictionary:
 		positions[str(slot.get("playerId", ""))] = {"x": float(slot.get("x", 0.0)), "z": float(slot.get("z", 0.0))}
 	tactic["frames"] = [{"id": "frame-0", "durationMs": 900, "positions": positions}]
 	return tactic
+
+static func blank_tactic(title: String = "未命名战术") -> Dictionary:
+	var now := Time.get_datetime_string_from_system(true)
+	return {
+		"schemaVersion": 1,
+		"id": "tactic-%d" % Time.get_unix_time_from_system(),
+		"title": title,
+		"notes": "",
+		"createdAt": now,
+		"updatedAt": now,
+		"courtConfig": default_court(),
+		"players": [],
+		"initialFormation": [],
+		"frames": [{"id": "frame-0", "durationMs": 900, "positions": {}}],
+		"phases": [{"id": "phase-0", "label": "准备", "startMs": 0}],
+		"moveTracks": [],
+		"poseActions": [],
+		"contactEvents": [],
+		"ballActions": []
+	}
 
 static func _sample_frames() -> Array[Dictionary]:
 	return [

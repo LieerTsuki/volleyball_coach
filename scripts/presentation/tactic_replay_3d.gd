@@ -116,49 +116,51 @@ func _build_hud() -> void:
 	var top_panel := ColorRect.new()
 	top_panel.color = Color(0.02, 0.04, 0.05, 0.88)
 	top_panel.position = Vector2(0, 0)
-	top_panel.size = Vector2(1920, 110)
+	top_panel.size = Vector2(1080, 112)
 	hud.add_child(top_panel)
 	var title := Label.new()
-	title.text = "精彩回放  /  3D TACTIC REPLAY"
-	title.position = Vector2(168, 23)
-	title.add_theme_font_size_override("font_size", 28)
+	title.text = "精彩回放 · 3D 战术"
+	title.position = Vector2(160, 20)
+	title.add_theme_font_size_override("font_size", 30)
 	hud.add_child(title)
 	var back_button := Button.new()
 	back_button.text = "‹ 2D 编排"
 	back_button.position = Vector2(24, 24)
 	back_button.size = Vector2(124, 52)
 	back_button.add_theme_font_size_override("font_size", 18)
+	back_button.add_theme_stylebox_override("normal", _button_style(Color("f08a5d"), Color("ffd166")))
+	back_button.add_theme_stylebox_override("hover", _button_style(Color("ff9f68"), Color("fff0a8")))
 	back_button.pressed.connect(func(): editor_requested.emit())
 	hud.add_child(back_button)
 	phase_label = Label.new()
-	phase_label.position = Vector2(168, 67)
+	phase_label.position = Vector2(160, 68)
 	phase_label.add_theme_font_size_override("font_size", 18)
 	phase_label.add_theme_color_override("font_color", Color("c5e53e"))
 	hud.add_child(phase_label)
 	time_label = Label.new()
-	time_label.position = Vector2(1610, 25)
+	time_label.position = Vector2(890, 26)
 	time_label.add_theme_font_size_override("font_size", 34)
 	hud.add_child(time_label)
 
-	var bottom_panel := ColorRect.new()
-	bottom_panel.color = Color(0.02, 0.04, 0.05, 0.92)
-	bottom_panel.position = Vector2(0, 925)
-	bottom_panel.size = Vector2(1920, 155)
-	hud.add_child(bottom_panel)
-	var replay_button := _make_button("播放 / 暂停", Vector2(60, 974), Vector2(150, 48), _toggle_play)
-	var restart_button := _make_button("重播", Vector2(224, 974), Vector2(120, 48), _restart)
-	var top_button := _make_button("顶视", Vector2(360, 974), Vector2(110, 48), func(): _set_camera("top"))
-	var oblique_button := _make_button("斜上方", Vector2(484, 974), Vector2(120, 48), func(): _set_camera("oblique"))
-	var net_button := _make_button("网侧", Vector2(618, 974), Vector2(110, 48), func(): _set_camera("net"))
+	var control_panel := ColorRect.new()
+	control_panel.color = Color(0.02, 0.04, 0.05, 0.94)
+	control_panel.position = Vector2(0, 112)
+	control_panel.size = Vector2(1080, 252)
+	hud.add_child(control_panel)
+	var replay_button := _make_button("播放 / 暂停", Vector2(32, 142), Vector2(190, 64), _toggle_play)
+	var restart_button := _make_button("重播", Vector2(234, 142), Vector2(140, 64), _restart)
+	var top_button := _make_button("顶视", Vector2(386, 142), Vector2(130, 64), func(): _set_camera("top"))
+	var oblique_button := _make_button("斜上方", Vector2(528, 142), Vector2(150, 64), func(): _set_camera("oblique"))
+	var net_button := _make_button("网侧", Vector2(690, 142), Vector2(130, 64), func(): _set_camera("net"))
 	var speed_label := Label.new()
 	speed_label.text = "路线由 2D 关键帧自动驱动"
-	speed_label.position = Vector2(60, 1030)
+	speed_label.position = Vector2(32, 216)
 	speed_label.add_theme_color_override("font_color", Color("8ca3ad"))
 	speed_label.add_theme_font_size_override("font_size", 16)
 	hud.add_child(speed_label)
 	timeline = HSlider.new()
-	timeline.position = Vector2(790, 990)
-	timeline.size = Vector2(770, 34)
+	timeline.position = Vector2(32, 278)
+	timeline.size = Vector2(980, 34)
 	timeline.step = 10.0
 	timeline.value_changed.connect(_on_timeline_changed)
 	hud.add_child(timeline)
@@ -168,10 +170,26 @@ func _make_button(text: String, position: Vector2, button_size: Vector2, callbac
 	button.text = text
 	button.position = position
 	button.size = button_size
-	button.add_theme_font_size_override("font_size", 17)
+	button.add_theme_font_size_override("font_size", 20)
+	button.add_theme_stylebox_override("normal", _button_style(Color("f08a5d"), Color("ffd166")))
+	button.add_theme_stylebox_override("hover", _button_style(Color("ff9f68"), Color("fff0a8")))
+	button.add_theme_stylebox_override("pressed", _button_style(Color("d95f59"), Color("fff0a8")))
 	button.pressed.connect(callback)
 	hud.add_child(button)
 	return button
+
+func _button_style(background: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(3)
+	style.corner_radius_top_left = 20
+	style.corner_radius_top_right = 20
+	style.corner_radius_bottom_left = 20
+	style.corner_radius_bottom_right = 20
+	style.shadow_color = Color(0, 0, 0, 0.3)
+	style.shadow_size = 5
+	return style
 
 func _apply_at(value: int) -> void:
 	if tactic.is_empty() or not built:

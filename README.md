@@ -11,6 +11,7 @@ Godot 4.x 离线排球教练战术板。项目使用竖屏 GDScript、Control、
 - `scripts/presentation/tactic_editor_2d.gd` 提供 2D 球场、号码圆点、关键帧、拖动和 2D 播放。
 - `scripts/presentation/vertical_court_layout.gd` 固定 9m × 18m 球场比例和屏幕坐标换算。
 - `scripts/presentation/vertical_court_board.gd` 提供竖屏球场绘制和球员拖动，工具栏由原生 Button 控件承载。
+- `scripts/infrastructure/tactic_repository.gd` 将多个战术保存到 `user://tactics`，编辑器中的「战术库」支持新建、打开和删除自定义战术。
 - `scripts/presentation/tactic_replay_3d.gd` 提供游戏化球馆、双方球员、球、动作和三种机位。
 - `scripts/main.gd` 在 2D 编排和 3D 回放之间切换，并保存同一个战术文档。
 - `export_presets.cfg` 已配置 Android arm64 导出目标。
@@ -20,7 +21,7 @@ Godot 4.x 离线排球教练战术板。项目使用竖屏 GDScript、Control、
 1. 安装 Godot 4.x，打开本目录。
 2. 导入 `project.godot`。
 3. 点击运行。内置示例会写入 `user://tactics`。
-4. 在竖屏 2D 界面拖动球员圆点，使用底部大按钮，点击「下一张」创建后续关键帧，再点击「进入 3D」查看回放。
+4. 在竖屏 2D 界面拖动球员圆点，使用底部卡通按钮，编辑或删除球员，新增或删除站位图，再点击「进入 3D」查看回放。
 
 ## Android APK
 

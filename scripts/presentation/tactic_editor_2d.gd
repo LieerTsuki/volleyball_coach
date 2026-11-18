@@ -6,6 +6,7 @@ signal save_requested
 signal document_changed
 
 var tactic: Dictionary = {}
+var repository: TacticRepository
 var selected_frame := 0
 var board: VerticalCourtBoard
 var frame_strip: HBoxContainer
@@ -14,10 +15,19 @@ var title_label: Label
 var play_button: Button
 var playing := false
 var status_message := "拖动球员圆点调整站位"
+var library_overlay: PanelContainer
+var player_overlay: PanelContainer
+var player_number_input: LineEdit
+var player_name_input: LineEdit
+var library_list: VBoxContainer
+var player_role_input: OptionButton
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_layout()
+
+func set_repository(value: TacticRepository) -> void:
+	repository = value
 
 func set_tactic(value: Dictionary) -> void:
 	tactic = TacticModels.ensure_frames(value)
@@ -25,6 +35,8 @@ func set_tactic(value: Dictionary) -> void:
 	if board:
 		board.set_tactic(tactic)
 		board.set_frame(selected_frame)
+	if title_label:
+		title_label.text = str(tactic.get("title", "排球战术板"))
 	_refresh_frame_strip()
 	_update_status("拖动球员圆点调整第 %d 张" % (selected_frame + 1))
 
@@ -61,6 +73,8 @@ func _build_layout() -> void:
 	subtitle.add_theme_font_size_override("font_size", 18)
 	subtitle.add_theme_color_override("font_color", Color("a8c0ce"))
 	title_box.add_child(subtitle)
+	var library_button := _button("战术库", 132, _open_library)
+	header_row.add_child(library_button)
 	var save_button := _button("保存", 132, _save)
 	header_row.add_child(save_button)
 
@@ -113,12 +127,14 @@ func _build_layout() -> void:
 	grid.add_theme_constant_override("v_separation", 12)
 	toolbar_column.add_child(grid)
 	grid.add_child(_button("＋ 添加球员", 0, _add_player))
-	grid.add_child(_button("下一张", 0, _next_frame))
+	grid.add_child(_button("新增站位图", 0, _next_frame))
 	play_button = _button("播放 2D", 0, _toggle_play)
 	grid.add_child(play_button)
 	grid.add_child(_button("重播", 0, _restart_preview))
 	grid.add_child(_button("进入 3D", 0, _open_replay))
+	grid.add_child(_button("编辑球员", 0, _open_player_editor))
 	grid.add_child(_button("删除球员", 0, _delete_selected_player))
+	grid.add_child(_button("删除站位图", 0, _delete_frame))
 	for child in grid.get_children():
 		child.custom_minimum_size = Vector2(0, 86)
 
@@ -128,8 +144,28 @@ func _button(text: String, width: int, callback: Callable) -> Button:
 	button.custom_minimum_size = Vector2(width if width > 0 else 0, 76)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.add_theme_font_size_override("font_size", 24)
+	button.add_theme_color_override("font_color", Color("fffaf0"))
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_stylebox_override("normal", _button_style(Color("f08a5d"), Color("ffd166")))
+	button.add_theme_stylebox_override("hover", _button_style(Color("ff9f68"), Color("fff0a8")))
+	button.add_theme_stylebox_override("pressed", _button_style(Color("d95f59"), Color("fff0a8")))
 	button.pressed.connect(callback)
 	return button
+
+func _button_style(background: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(3)
+	style.corner_radius_top_left = 22
+	style.corner_radius_top_right = 22
+	style.corner_radius_bottom_left = 22
+	style.corner_radius_bottom_right = 22
+	style.shadow_color = Color(0, 0, 0, 0.28)
+	style.shadow_size = 5
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	return style
 
 func _panel_style(background: Color, border: Color, radius: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -157,6 +193,9 @@ func _refresh_frame_strip() -> void:
 		button.text = "第 %d 张\n%d ms" % [index + 1, int(frame.get("durationMs", 800))]
 		button.custom_minimum_size = Vector2(148, 82)
 		button.add_theme_font_size_override("font_size", 19)
+		button.add_theme_stylebox_override("normal", _button_style(Color("274e62"), Color("75c9c8")))
+		button.add_theme_stylebox_override("hover", _button_style(Color("3d7180"), Color("ffd166")))
+		button.add_theme_stylebox_override("pressed", _button_style(Color("d95f59"), Color("fff0a8")))
 		button.pressed.connect(func(): _select_frame(index))
 		frame_strip.add_child(button)
 
@@ -196,12 +235,40 @@ func _add_player() -> void:
 	for frame in tactic.get("frames", []):
 		var positions: Dictionary = frame.get("positions", {})
 		positions[player_id] = {"x": 0.0, "z": -6.5}
+	board.selected_player_id = player_id
 	board.set_tactic(tactic)
 	document_changed.emit()
-	_update_status("已添加球员 %d" % number)
+	_update_status("已添加球员 %d，可点击编辑球员修改号码和姓名" % number)
 
 func _delete_selected_player() -> void:
-	_update_status("请先点击要删除的球员")
+	var player_id := board.selected_player_id if board else ""
+	if player_id.is_empty():
+		_update_status("请先点击要删除的球员")
+		return
+	for index in range(tactic.get("players", []).size()):
+		if str(tactic.players[index].get("id", "")) == player_id:
+			tactic.players.remove_at(index)
+			break
+	for frame in tactic.get("frames", []):
+		var positions: Dictionary = frame.get("positions", {})
+		positions.erase(player_id)
+	board.selected_player_id = ""
+	board.set_tactic(tactic)
+	document_changed.emit()
+	_update_status("已删除球员 %s" % player_id)
+
+func _delete_frame() -> void:
+	var frames: Array = tactic.get("frames", [])
+	if frames.size() <= 1:
+		_update_status("至少保留一张站位图")
+		return
+	frames.remove_at(selected_frame)
+	selected_frame = mini(selected_frame, frames.size() - 1)
+	board.set_tactic(tactic)
+	board.set_frame(selected_frame)
+	_refresh_frame_strip()
+	document_changed.emit()
+	_update_status("已删除当前站位图")
 
 func _toggle_play() -> void:
 	playing = not playing
@@ -228,3 +295,166 @@ func _update_status(text: String) -> void:
 	status_message = text
 	if status_label:
 		status_label.text = status_message
+
+func _open_player_editor() -> void:
+	var player_id := board.selected_player_id if board else ""
+	if player_id.is_empty():
+		_update_status("请先点击球员，再编辑资料")
+		return
+	var player: Dictionary = {}
+	for candidate in tactic.get("players", []):
+		if str(candidate.get("id", "")) == player_id:
+			player = candidate
+			break
+	if player.is_empty():
+		return
+	_ensure_player_overlay()
+	player_number_input.text = str(player.get("jerseyNumber", ""))
+	player_name_input.text = str(player.get("name", "球员"))
+	player_role_input.select(max(0, TacticModels.PLAYER_ROLES.find(str(player.get("role", "主攻")))))
+	player_overlay.visible = true
+	player_overlay.position = Vector2((size.x - player_overlay.size.x) * 0.5, (size.y - player_overlay.size.y) * 0.5)
+
+func _ensure_player_overlay() -> void:
+	if player_overlay:
+		return
+	player_overlay = PanelContainer.new()
+	player_overlay.custom_minimum_size = Vector2(760, 560)
+	player_overlay.size = Vector2(760, 560)
+	player_overlay.z_index = 60
+	player_overlay.add_theme_stylebox_override("panel", _panel_style(Color("16384c"), Color("ffd166"), 30))
+	add_child(player_overlay)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 18)
+	player_overlay.add_child(column)
+	var heading := Label.new()
+	heading.text = "编辑球员资料"
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.add_theme_font_size_override("font_size", 30)
+	column.add_child(heading)
+	player_number_input = LineEdit.new()
+	player_number_input.placeholder_text = "号码"
+	player_number_input.custom_minimum_size = Vector2(0, 70)
+	player_number_input.add_theme_font_size_override("font_size", 24)
+	column.add_child(player_number_input)
+	player_name_input = LineEdit.new()
+	player_name_input.placeholder_text = "姓名"
+	player_name_input.custom_minimum_size = Vector2(0, 70)
+	player_name_input.add_theme_font_size_override("font_size", 24)
+	column.add_child(player_name_input)
+	player_role_input = OptionButton.new()
+	player_role_input.custom_minimum_size = Vector2(0, 70)
+	player_role_input.add_theme_font_size_override("font_size", 24)
+	for role in TacticModels.PLAYER_ROLES:
+		player_role_input.add_item(role)
+	column.add_child(player_role_input)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 16)
+	column.add_child(actions)
+	var cancel := _button("取消", 0, _close_player_editor)
+	var confirm := _button("保存资料", 0, _save_player_editor)
+	actions.add_child(cancel)
+	actions.add_child(confirm)
+	player_overlay.visible = false
+
+func _close_player_editor() -> void:
+	if player_overlay:
+		player_overlay.visible = false
+
+func _save_player_editor() -> void:
+	var player_id := board.selected_player_id if board else ""
+	for player in tactic.get("players", []):
+		if str(player.get("id", "")) == player_id:
+			player["jerseyNumber"] = player_number_input.text.strip_edges()
+			player["name"] = player_name_input.text.strip_edges()
+			player["role"] = player_role_input.get_item_text(player_role_input.selected)
+			break
+	board.set_tactic(tactic)
+	_close_player_editor()
+	document_changed.emit()
+	_update_status("球员资料已更新")
+
+func _open_library() -> void:
+	if repository == null:
+		_update_status("战术库尚未连接")
+		return
+	_ensure_library_overlay()
+	_refresh_library()
+	library_overlay.visible = true
+
+func _ensure_library_overlay() -> void:
+	if library_overlay:
+		return
+	library_overlay = PanelContainer.new()
+	library_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	library_overlay.z_index = 70
+	library_overlay.add_theme_stylebox_override("panel", _panel_style(Color("0b2030"), Color("ffd166"), 0))
+	add_child(library_overlay)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 16)
+	library_overlay.add_child(column)
+	var heading := Label.new()
+	heading.text = "我的战术库"
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.add_theme_font_size_override("font_size", 32)
+	column.add_child(heading)
+	library_list = VBoxContainer.new()
+	library_list.add_theme_constant_override("separation", 12)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.add_child(library_list)
+	column.add_child(scroll)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 16)
+	column.add_child(actions)
+	actions.add_child(_button("新建战术", 0, _new_tactic))
+	actions.add_child(_button("关闭", 0, _close_library))
+	library_overlay.visible = false
+
+func _refresh_library() -> void:
+	if not library_list or repository == null:
+		return
+	for child in library_list.get_children():
+		child.queue_free()
+	for item in repository.load_all():
+		var row := HBoxContainer.new()
+		row.custom_minimum_size = Vector2(0, 86)
+		var open := _button(str(item.get("title", "未命名战术")), 0, func(): _load_tactic_from_library(str(item.get("id", ""))))
+		var delete := _button("删除", 140, func(): _delete_tactic_from_library(str(item.get("id", ""))))
+		row.add_child(open)
+		row.add_child(delete)
+		library_list.add_child(row)
+
+func _new_tactic() -> void:
+	if repository == null:
+		return
+	tactic = repository.create_blank()
+	selected_frame = 0
+	board.set_tactic(tactic)
+	_refresh_frame_strip()
+	_close_library()
+	document_changed.emit()
+	_update_status("已创建新战术")
+
+func _load_tactic_from_library(tactic_id: String) -> void:
+	var loaded := repository.load_by_id(tactic_id) if repository else {}
+	if loaded.is_empty():
+		return
+	tactic = loaded
+	selected_frame = 0
+	board.set_tactic(tactic)
+	_refresh_frame_strip()
+	_close_library()
+	document_changed.emit()
+	_update_status("已打开战术：" + str(tactic.get("title", "")))
+
+func _delete_tactic_from_library(tactic_id: String) -> void:
+	if repository and repository.delete_tactic(tactic_id):
+		_refresh_library()
+		_update_status("已从战术库删除")
+	else:
+		_update_status("内置示例不能删除")
+
+func _close_library() -> void:
+	if library_overlay:
+		library_overlay.visible = false
