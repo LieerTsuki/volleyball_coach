@@ -47,12 +47,11 @@ func set_path_mode(enabled: bool) -> void:
 	queue_redraw()
 
 func _refresh_layout() -> void:
-	court_rect = court_layout.court_rect(size, 22.0, 34.0)
+	court_rect = court_layout.court_rect(size, 6.0, 10.0)
 	queue_redraw()
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color("1f5278"))
-	draw_rect(court_rect.grow(6.0), Color("12324e"))
+	draw_rect(Rect2(Vector2.ZERO, size), Color("e8a36a"))
 	draw_rect(court_rect, Color("e8a36a"))
 	draw_rect(court_rect, Color("fff7e8"), false, 5.0)
 	var center_y := court_rect.position.y + court_rect.size.y * 0.5
