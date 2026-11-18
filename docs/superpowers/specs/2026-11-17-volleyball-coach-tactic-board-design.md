@@ -8,7 +8,7 @@
 
 ## 目标
 
-交付一个离线优先的 Godot 4.x 横屏 Android 教练战术板。教练可以新建或复制战术，摆放六名己方球员，编排发球、一传、二传、进攻与掩护，使用统一时间轴回放，并在顶视、斜上方和网侧三种机位之间切换。
+交付一个离线优先的 Godot 4.x 竖屏 Android 教练战术板。教练可以新建或复制战术，摆放六名己方球员，编排发球、一传、二传、进攻与掩护，使用统一时间轴回放，并在顶视、斜上方和网侧三种机位之间切换。
 
 ## 架构
 
@@ -26,8 +26,8 @@
 
 ## Android
 
-使用 Godot Export Templates 生成 APK。Android Studio 提供 SDK，项目需要配置 OpenJDK 17、NDK、CMake 和对应 Android 平台。首版使用 GDScript，避免 Godot C# Android 导出的实验性限制。
+使用 Godot Export Templates 生成 APK。Android Studio 提供 SDK，项目需要配置 OpenJDK 17、NDK、CMake 和对应 Android 平台。首版使用 GDScript，避免 Godot C# Android 导出的实验性限制。应用使用 1080×1920 竖屏基准，并为不同竖屏宽高比保留安全区。
 
 ## 验收
 
-测试 JSON 往返、复制隔离、关键帧继承、移动插值、触球端点、球路弧线、坏数据和 Seek 一致性。Android 验收横屏、安全区域、触控、前后台切换、离线重启和 APK 安装。触球帧球与锚点误差目标不超过 5 cm。
+测试 JSON 往返、复制隔离、关键帧继承、移动插值、触球端点、球路弧线、坏数据和 Seek 一致性。Android 验收竖屏、安全区域、大按钮触控、前后台切换、离线重启和 APK 安装。触球帧球与锚点误差目标不超过 5 cm。
