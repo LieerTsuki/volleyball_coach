@@ -11,7 +11,7 @@ var leg_r: MeshInstance3D
 
 func setup(definition: Dictionary) -> void:
 	player_id = str(definition.id)
-	var color := Color("e86b3a") if bool(definition.get("isReceiver", false)) else Color("369bd6")
+	var color := Color("c9e63b") if str(definition.get("team", "home")) == "away" else (Color("e86b3a") if bool(definition.get("isReceiver", false)) else Color("369bd6"))
 	torso = _part(CapsuleMesh.new(), Vector3(0, 1.1, 0), Vector3(0.42, 1.0, 0.28), color)
 	head = _part(SphereMesh.new(), Vector3(0, 2.02, 0), Vector3.ONE * 0.28, Color("f0c4a2"))
 	arm_l = _part(CapsuleMesh.new(), Vector3(-0.48, 1.3, 0), Vector3(0.12, 0.55, 0.12), color)

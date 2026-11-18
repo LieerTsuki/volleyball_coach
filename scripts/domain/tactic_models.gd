@@ -18,6 +18,7 @@ static func sample_tactic() -> Dictionary:
 			{"playerId":"p1","x":2.8,"z":-2.6,"yawDeg":180.0}, {"playerId":"p2","x":-3.2,"z":-5.6,"yawDeg":160.0}, {"playerId":"p3","x":-1.1,"z":-2.0,"yawDeg":180.0},
 			{"playerId":"p4","x":0.1,"z":-5.7,"yawDeg":180.0}, {"playerId":"p5","x":3.0,"z":-5.4,"yawDeg":200.0}, {"playerId":"p6","x":-2.1,"z":-7.2,"yawDeg":170.0}
 		],
+		"frames": _sample_frames(),
 		"phases": [{"id":"phase-receive","label":"发球与一传","startMs":0},{"id":"phase-set","label":"二传组织","startMs":1700},{"id":"phase-attack","label":"进攻","startMs":2800}],
 		"moveTracks": [
 			{"id":"m-p1","playerId":"p1","startMs":700,"endMs":1700,"waypoints":[{"x":1.4,"y":0,"z":-1.2}],"facingMode":"FacePath"},
@@ -41,3 +42,39 @@ static func sample_tactic() -> Dictionary:
 			{"id":"ball-spike","type":"Spike","startMs":3350,"endMs":3800,"from":{"isContact":true,"contactId":"c-spike"},"to":{"isContact":false,"worldPoint":{"x":2.8,"y":0.15,"z":4.5}},"arcHeightM":0.3}
 		]
 	}
+
+static func ensure_frames(tactic: Dictionary) -> Dictionary:
+	if not tactic.get("frames", []).is_empty():
+		return tactic
+	if str(tactic.get("id", "")) == "sample-three-receiver-fast-middle":
+		tactic["frames"] = _sample_frames()
+		return tactic
+	var positions := {}
+	for slot in tactic.get("initialFormation", []):
+		positions[str(slot.get("playerId", ""))] = {"x": float(slot.get("x", 0.0)), "z": float(slot.get("z", 0.0))}
+	tactic["frames"] = [{"id": "frame-0", "durationMs": 900, "positions": positions}]
+	return tactic
+
+static func _sample_frames() -> Array[Dictionary]:
+	return [
+		{"id": "frame-0", "durationMs": 800, "positions": {
+			"p1": {"x": 2.8, "z": -2.6}, "p2": {"x": -3.2, "z": -5.6}, "p3": {"x": -1.1, "z": -2.0},
+			"p4": {"x": 0.1, "z": -5.7}, "p5": {"x": 3.0, "z": -5.4}, "p6": {"x": -2.1, "z": -7.2}
+		}},
+		{"id": "frame-1", "durationMs": 900, "positions": {
+			"p1": {"x": 1.4, "z": -1.2}, "p2": {"x": -2.4, "z": -4.2}, "p3": {"x": -1.1, "z": -2.0},
+			"p4": {"x": 0.1, "z": -5.7}, "p5": {"x": 3.0, "z": -5.4}, "p6": {"x": -1.1, "z": -5.4}
+		}},
+		{"id": "frame-2", "durationMs": 900, "positions": {
+			"p1": {"x": 1.4, "z": -1.2}, "p2": {"x": -2.4, "z": -4.2}, "p3": {"x": -0.4, "z": -0.5},
+			"p4": {"x": 0.1, "z": -5.7}, "p5": {"x": 3.0, "z": -5.4}, "p6": {"x": -1.1, "z": -5.4}
+		}},
+		{"id": "frame-3", "durationMs": 900, "positions": {
+			"p1": {"x": 1.4, "z": -1.2}, "p2": {"x": -2.2, "z": -1.0}, "p3": {"x": -0.8, "z": 0.8},
+			"p4": {"x": 0.1, "z": -5.7}, "p5": {"x": 3.0, "z": -5.4}, "p6": {"x": -1.1, "z": -5.4}
+		}},
+		{"id": "frame-4", "durationMs": 700, "positions": {
+			"p1": {"x": 1.4, "z": -1.2}, "p2": {"x": -2.4, "z": 0.7}, "p3": {"x": -0.8, "z": 0.8},
+			"p4": {"x": 0.1, "z": -5.7}, "p5": {"x": 3.0, "z": -5.4}, "p6": {"x": -1.1, "z": -5.4}
+		}}
+	]

@@ -20,6 +20,8 @@ static func evaluate_at(tactic: Dictionary, time_ms: int) -> Dictionary:
 	return state
 
 static func evaluate_player_position(tactic: Dictionary, player_id: String, time_ms: int) -> Vector3:
+	if not tactic.get("frames", []).is_empty():
+		return FrameInterpolator.player_position(tactic, player_id, time_ms)
 	var position := Vector3.ZERO
 	for slot in tactic.get("initialFormation", []):
 		if str(slot.get("playerId", "")) == player_id: position = Vector3(float(slot.x), 0.0, float(slot.z))
@@ -54,6 +56,11 @@ static func evaluate_pose(tactic: Dictionary, player_id: String, time_ms: int) -
 	return {"type": "Ready", "progress": 0.0}
 
 static func evaluate_yaw(tactic: Dictionary, player_id: String, time_ms: int, position: Vector3) -> float:
+	if not tactic.get("frames", []).is_empty():
+		var next_position := FrameInterpolator.player_position(tactic, player_id, time_ms + 80)
+		var direction := next_position - position
+		if direction.length_squared() > 0.001:
+			return rad_to_deg(atan2(direction.x, direction.z))
 	for move in tactic.get("moveTracks", []):
 		if str(move.get("playerId", "")) == player_id and time_ms >= int(move.startMs) and time_ms < int(move.endMs) and not move.get("waypoints", []).is_empty():
 			var target := _point(move.waypoints[0]); return rad_to_deg(atan2(target.x - position.x, target.z - position.z))
