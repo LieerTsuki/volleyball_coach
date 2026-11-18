@@ -1,4 +1,4 @@
-# 排球战术板 3D
+# 球阵绘 · VolleySketch
 
 Godot 4.x 离线排球教练战术板。项目使用竖屏 GDScript、Control、Node3D、Camera3D 和 JSON 存档，先在按真实 9m × 18m 比例缩小的 2D 球场中摆位，再用同一份数据驱动 3D 回放。
 
@@ -12,6 +12,7 @@ Godot 4.x 离线排球教练战术板。项目使用竖屏 GDScript、Control、
 - `scripts/presentation/vertical_court_layout.gd` 固定 9m × 18m 球场比例和屏幕坐标换算。
 - `scripts/presentation/vertical_court_board.gd` 提供竖屏球场绘制和球员拖动，工具栏由原生 Button 控件承载。
 - `scripts/infrastructure/tactic_repository.gd` 将多个战术保存到 `user://tactics`，编辑器中的「战术库」支持新建、打开和删除自定义战术。
+- `assets/ui` 保存卡通文件夹、加号、球员、播放、删除和保存图标，应用图标为「球阵绘」专属排球吉祥物。
 - `scripts/presentation/tactic_replay_3d.gd` 提供游戏化球馆、双方球员、球、动作和三种机位。
 - `scripts/main.gd` 在 2D 编排和 3D 回放之间切换，并保存同一个战术文档。
 - `export_presets.cfg` 已配置 Android arm64 导出目标。

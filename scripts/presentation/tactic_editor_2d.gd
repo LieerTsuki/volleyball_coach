@@ -12,6 +12,7 @@ var board: VerticalCourtBoard
 var frame_strip: HBoxContainer
 var status_label: Label
 var title_label: Label
+var subtitle_label: Label
 var play_button: Button
 var playing := false
 var status_message := "拖动球员圆点调整站位"
@@ -25,6 +26,18 @@ var player_role_input: OptionButton
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_layout()
+	set_process(true)
+
+func _process(delta: float) -> void:
+	if not playing or tactic.is_empty() or not board:
+		return
+	var duration: int = FrameInterpolator.total_duration(tactic)
+	var current: int = board.playback_time_ms if board.playback_time_ms >= 0 else 0
+	current += roundi(delta * 1000.0)
+	if current >= duration:
+		current = 0
+	board.set_playback_time(current)
+
 
 func set_repository(value: TacticRepository) -> void:
 	repository = value
@@ -36,7 +49,9 @@ func set_tactic(value: Dictionary) -> void:
 		board.set_tactic(tactic)
 		board.set_frame(selected_frame)
 	if title_label:
-		title_label.text = str(tactic.get("title", "排球战术板"))
+		title_label.text = "球阵绘"
+	if subtitle_label:
+		subtitle_label.text = "2D 站位编排 · " + str(tactic.get("title", "未命名战术"))
 	_refresh_frame_strip()
 	_update_status("拖动球员圆点调整第 %d 张" % (selected_frame + 1))
 
@@ -59,23 +74,31 @@ func _build_layout() -> void:
 	var header_row := HBoxContainer.new()
 	header_row.add_theme_constant_override("separation", 18)
 	header.add_child(header_row)
-	var back := _button("‹", 92, _back_pressed)
-	header_row.add_child(back)
+	var app_icon := TextureRect.new()
+	app_icon.texture = load("res://icon.svg")
+	app_icon.custom_minimum_size = Vector2(70, 70)
+	app_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	app_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	header_row.add_child(app_icon)
 	var title_box := VBoxContainer.new()
 	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(title_box)
 	title_label = Label.new()
-	title_label.text = "排球战术板"
+	title_label.text = "球阵绘"
 	title_label.add_theme_font_size_override("font_size", 30)
 	title_box.add_child(title_label)
-	var subtitle := Label.new()
-	subtitle.text = "2D 站位编排"
-	subtitle.add_theme_font_size_override("font_size", 18)
-	subtitle.add_theme_color_override("font_color", Color("a8c0ce"))
-	title_box.add_child(subtitle)
-	var library_button := _button("战术库", 132, _open_library)
+	subtitle_label = Label.new()
+	subtitle_label.text = "2D 站位编排"
+	subtitle_label.add_theme_font_size_override("font_size", 18)
+	subtitle_label.add_theme_color_override("font_color", Color("a8c0ce"))
+	title_box.add_child(subtitle_label)
+	var library_button := _icon_button("res://assets/ui/library.svg", "战术库", _open_library)
+	library_button.text = "战术库"
+	library_button.custom_minimum_size = Vector2(148, 76)
 	header_row.add_child(library_button)
-	var save_button := _button("保存", 132, _save)
+	var save_button := _icon_button("res://assets/ui/save.svg", "保存", _save)
+	save_button.text = "保存"
+	save_button.custom_minimum_size = Vector2(132, 76)
 	header_row.add_child(save_button)
 
 	var board_panel := PanelContainer.new()
@@ -87,6 +110,7 @@ func _build_layout() -> void:
 	board_panel.add_child(board)
 	board.player_moved.connect(_on_player_moved)
 	board.player_selected.connect(_on_player_selected)
+	board.player_double_clicked.connect(_open_player_editor_by_id)
 
 	var frames_panel := PanelContainer.new()
 	frames_panel.custom_minimum_size = Vector2(0, 162)
@@ -122,21 +146,21 @@ func _build_layout() -> void:
 	status_label.add_theme_color_override("font_color", Color("d7e5ea"))
 	toolbar_column.add_child(status_label)
 	var grid := GridContainer.new()
-	grid.columns = 3
+	grid.columns = 5
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
 	toolbar_column.add_child(grid)
-	grid.add_child(_button("＋ 添加球员", 0, _add_player))
-	grid.add_child(_button("新增站位图", 0, _next_frame))
+	grid.add_child(_icon_button("res://assets/ui/player.svg", "增加球员", _add_player))
+	grid.add_child(_icon_button("res://assets/ui/plus_frame.svg", "新增站位图", _next_frame))
 	play_button = _button("播放 2D", 0, _toggle_play)
+	play_button.icon = load("res://assets/ui/play.svg")
+	play_button.text = ""
+	play_button.tooltip_text = "播放 2D"
 	grid.add_child(play_button)
-	grid.add_child(_button("重播", 0, _restart_preview))
-	grid.add_child(_button("进入 3D", 0, _open_replay))
-	grid.add_child(_button("编辑球员", 0, _open_player_editor))
-	grid.add_child(_button("删除球员", 0, _delete_selected_player))
-	grid.add_child(_button("删除站位图", 0, _delete_frame))
+	grid.add_child(_icon_button("res://assets/ui/trash.svg", "删除站位图", _delete_frame))
+	grid.add_child(_icon_button("res://assets/ui/play.svg", "进入 3D", _open_replay))
 	for child in grid.get_children():
-		child.custom_minimum_size = Vector2(0, 86)
+		child.custom_minimum_size = Vector2(0, 96)
 
 func _button(text: String, width: int, callback: Callable) -> Button:
 	var button := Button.new()
@@ -149,6 +173,19 @@ func _button(text: String, width: int, callback: Callable) -> Button:
 	button.add_theme_stylebox_override("normal", _button_style(Color("f08a5d"), Color("ffd166")))
 	button.add_theme_stylebox_override("hover", _button_style(Color("ff9f68"), Color("fff0a8")))
 	button.add_theme_stylebox_override("pressed", _button_style(Color("d95f59"), Color("fff0a8")))
+	button.pressed.connect(callback)
+	return button
+
+func _icon_button(icon_path: String, tooltip: String, callback: Callable) -> Button:
+	var button := Button.new()
+	button.icon = load(icon_path)
+	button.text = ""
+	button.tooltip_text = tooltip
+	button.custom_minimum_size = Vector2(88, 88)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_stylebox_override("normal", _button_style(Color("18aeb4"), Color("ffd166")))
+	button.add_theme_stylebox_override("hover", _button_style(Color("2fc4c0"), Color("fff0a8")))
+	button.add_theme_stylebox_override("pressed", _button_style(Color("0d858e"), Color("fff0a8")))
 	button.pressed.connect(callback)
 	return button
 
@@ -205,6 +242,7 @@ func _select_frame(index: int) -> void:
 	if play_button:
 		play_button.text = "播放 2D"
 	board.set_frame(selected_frame)
+	board.set_playback_time(-1)
 	_refresh_frame_strip()
 	_update_status("已选择第 %d 张站位图" % (selected_frame + 1))
 
@@ -272,12 +310,16 @@ func _delete_frame() -> void:
 
 func _toggle_play() -> void:
 	playing = not playing
-	play_button.text = "暂停 2D" if playing else "播放 2D"
+	board.set_playback_time(0 if playing else -1)
+	play_button.text = ""
+	play_button.tooltip_text = "暂停 2D" if playing else "播放 2D"
 	_update_status("2D 预览已%s" % ("开始" if playing else "暂停"))
 
 func _restart_preview() -> void:
 	playing = true
-	play_button.text = "暂停 2D"
+	board.set_playback_time(0)
+	play_button.text = ""
+	play_button.tooltip_text = "暂停 2D"
 	_update_status("2D 预览从第 1 张开始")
 
 func _open_replay() -> void:
@@ -314,6 +356,11 @@ func _open_player_editor() -> void:
 	player_role_input.select(max(0, TacticModels.PLAYER_ROLES.find(str(player.get("role", "主攻")))))
 	player_overlay.visible = true
 	player_overlay.position = Vector2((size.x - player_overlay.size.x) * 0.5, (size.y - player_overlay.size.y) * 0.5)
+
+func _open_player_editor_by_id(player_id: String) -> void:
+	if board:
+		board.selected_player_id = player_id
+	_open_player_editor()
 
 func _ensure_player_overlay() -> void:
 	if player_overlay:
@@ -353,8 +400,10 @@ func _ensure_player_overlay() -> void:
 	column.add_child(actions)
 	var cancel := _button("取消", 0, _close_player_editor)
 	var confirm := _button("保存资料", 0, _save_player_editor)
+	var remove := _button("删除球员", 0, _delete_player_from_editor)
 	actions.add_child(cancel)
 	actions.add_child(confirm)
+	actions.add_child(remove)
 	player_overlay.visible = false
 
 func _close_player_editor() -> void:
@@ -373,6 +422,10 @@ func _save_player_editor() -> void:
 	_close_player_editor()
 	document_changed.emit()
 	_update_status("球员资料已更新")
+
+func _delete_player_from_editor() -> void:
+	_close_player_editor()
+	_delete_selected_player()
 
 func _open_library() -> void:
 	if repository == null:

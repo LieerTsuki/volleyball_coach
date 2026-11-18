@@ -3,13 +3,17 @@ extends Control
 
 signal player_moved(player_id: String, position: Vector3)
 signal player_selected(player_id: String)
+signal player_double_clicked(player_id: String)
 
 var tactic: Dictionary = {}
 var frame_index := 0
 var selected_player_id := ""
 var dragged_player_id := ""
+var playback_time_ms := -1
 var court_layout := VerticalCourtLayout.new()
 var court_rect := Rect2()
+var last_tap_player_id := ""
+var last_tap_time_ms := 0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -25,6 +29,10 @@ func set_frame(index: int) -> void:
 	frame_index = clampi(index, 0, max(0, tactic.get("frames", []).size() - 1))
 	selected_player_id = ""
 	dragged_player_id = ""
+	queue_redraw()
+
+func set_playback_time(time_ms: int) -> void:
+	playback_time_ms = time_ms
 	queue_redraw()
 
 func _refresh_layout() -> void:
@@ -49,11 +57,12 @@ func _draw() -> void:
 func _draw_players() -> void:
 	if tactic.get("frames", []).is_empty():
 		return
-	var frame: Dictionary = tactic.get("frames", [])[frame_index]
 	var radius := clampf(court_rect.size.x * 0.052, 30.0, 48.0)
 	for player in tactic.get("players", []):
 		var player_id := str(player.get("id", ""))
-		var position := FrameInterpolator.position_in_frame(frame, player_id)
+		var position := FrameInterpolator.position_in_frame(tactic.get("frames", [])[frame_index], player_id)
+		if playback_time_ms >= 0:
+			position = FrameInterpolator.player_position(tactic, player_id, playback_time_ms)
 		var screen_position := court_layout.world_to_screen(position, court_rect)
 		var is_receiver := bool(player.get("isReceiver", false))
 		var fill := Color("d83524") if not is_receiver else Color("5b9a3b")
@@ -96,6 +105,11 @@ func _press_player(screen_position: Vector2) -> void:
 		if player_screen.distance_to(screen_position) <= hit_radius:
 			selected_player_id = player_id
 			dragged_player_id = player_id
+			var now := Time.get_ticks_msec()
+			if last_tap_player_id == player_id and now - last_tap_time_ms <= 380:
+				player_double_clicked.emit(player_id)
+			last_tap_player_id = player_id
+			last_tap_time_ms = now
 			player_selected.emit(player_id)
 			queue_redraw()
 			return
