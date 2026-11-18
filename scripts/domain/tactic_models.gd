@@ -45,14 +45,22 @@ static func sample_tactic() -> Dictionary:
 
 static func ensure_frames(tactic: Dictionary) -> Dictionary:
 	if not tactic.get("frames", []).is_empty():
+		for frame in tactic.get("frames", []):
+			if not frame.has("ball"):
+				frame["ball"] = {"x": 0.0, "z": 0.0}
+			if not frame.has("routes"):
+				frame["routes"] = {}
 		return tactic
 	if str(tactic.get("id", "")) == "sample-three-receiver-fast-middle":
 		tactic["frames"] = _sample_frames()
+		for frame in tactic.frames:
+			frame["ball"] = {"x": 0.0, "z": 0.0}
+			frame["routes"] = {}
 		return tactic
 	var positions := {}
 	for slot in tactic.get("initialFormation", []):
 		positions[str(slot.get("playerId", ""))] = {"x": float(slot.get("x", 0.0)), "z": float(slot.get("z", 0.0))}
-	tactic["frames"] = [{"id": "frame-0", "durationMs": 900, "positions": positions}]
+	tactic["frames"] = [{"id": "frame-0", "durationMs": 900, "positions": positions, "ball": {"x": 0.0, "z": 0.0}, "routes": {}}]
 	return tactic
 
 static func blank_tactic(title: String = "未命名战术") -> Dictionary:

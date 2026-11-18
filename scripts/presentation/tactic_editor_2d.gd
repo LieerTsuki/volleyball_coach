@@ -14,6 +14,7 @@ var status_label: Label
 var title_label: Label
 var subtitle_label: Label
 var play_button: Button
+var path_mode_button: Button
 var playing := false
 var status_message := "拖动球员圆点调整站位"
 var library_overlay: PanelContainer
@@ -111,6 +112,8 @@ func _build_layout() -> void:
 	board.player_moved.connect(_on_player_moved)
 	board.player_selected.connect(_on_player_selected)
 	board.player_double_clicked.connect(_open_player_editor_by_id)
+	board.route_drawn.connect(_on_route_drawn)
+	board.ball_moved.connect(_on_ball_moved)
 
 	var frames_panel := PanelContainer.new()
 	frames_panel.custom_minimum_size = Vector2(0, 162)
@@ -146,19 +149,21 @@ func _build_layout() -> void:
 	status_label.add_theme_color_override("font_color", Color("d7e5ea"))
 	toolbar_column.add_child(status_label)
 	var grid := GridContainer.new()
-	grid.columns = 5
+	grid.columns = 6
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
 	toolbar_column.add_child(grid)
 	grid.add_child(_icon_button("res://assets/ui/player.svg", "增加球员", _add_player))
 	grid.add_child(_icon_button("res://assets/ui/plus_frame.svg", "新增站位图", _next_frame))
+	path_mode_button = _icon_button("res://assets/ui/path.svg", "绘制跑位虚线", _toggle_path_mode)
+	grid.add_child(path_mode_button)
 	play_button = _button("播放 2D", 0, _toggle_play)
 	play_button.icon = load("res://assets/ui/play.svg")
 	play_button.text = ""
 	play_button.tooltip_text = "播放 2D"
 	grid.add_child(play_button)
 	grid.add_child(_icon_button("res://assets/ui/trash.svg", "删除站位图", _delete_frame))
-	grid.add_child(_icon_button("res://assets/ui/play.svg", "进入 3D", _open_replay))
+	grid.add_child(_icon_button("res://assets/ui/play_3d.svg", "进入 3D 回放", _open_replay))
 	for child in grid.get_children():
 		child.custom_minimum_size = Vector2(0, 96)
 
@@ -183,11 +188,20 @@ func _icon_button(icon_path: String, tooltip: String, callback: Callable) -> But
 	button.tooltip_text = tooltip
 	button.custom_minimum_size = Vector2(88, 88)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.add_theme_stylebox_override("normal", _button_style(Color("18aeb4"), Color("ffd166")))
-	button.add_theme_stylebox_override("hover", _button_style(Color("2fc4c0"), Color("fff0a8")))
-	button.add_theme_stylebox_override("pressed", _button_style(Color("0d858e"), Color("fff0a8")))
+	button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	button.add_theme_stylebox_override("hover", _icon_hover_style(Color(0.12, 0.68, 0.71, 0.22)))
+	button.add_theme_stylebox_override("pressed", _icon_hover_style(Color(0.94, 0.47, 0.36, 0.34)))
 	button.pressed.connect(callback)
 	return button
+
+func _icon_hover_style(background: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.corner_radius_top_left = 46
+	style.corner_radius_top_right = 46
+	style.corner_radius_bottom_left = 46
+	style.corner_radius_bottom_right = 46
+	return style
 
 func _button_style(background: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -253,6 +267,14 @@ func _on_player_moved(player_id: String, position: Vector3) -> void:
 	document_changed.emit()
 	_update_status("球员 %s 位置 %.1fm / %.1fm" % [player_id, position.x, position.z])
 
+func _on_route_drawn(player_id: String, points: Array) -> void:
+	document_changed.emit()
+	_update_status("已记录球员 %s 的跑位虚线" % player_id)
+
+func _on_ball_moved(position: Vector3) -> void:
+	document_changed.emit()
+	_update_status("排球位置 %.1fm / %.1fm" % [position.x, position.z])
+
 func _next_frame() -> void:
 	var frames: Array = tactic.get("frames", [])
 	if frames.is_empty():
@@ -314,6 +336,15 @@ func _toggle_play() -> void:
 	play_button.text = ""
 	play_button.tooltip_text = "暂停 2D" if playing else "播放 2D"
 	_update_status("2D 预览已%s" % ("开始" if playing else "暂停"))
+
+func _toggle_path_mode() -> void:
+	if board.selected_player_id.is_empty():
+		_update_status("先点击一名球员，再使用虚线工具")
+		return
+	var enabled := not board.path_mode
+	board.set_path_mode(enabled)
+	path_mode_button.tooltip_text = "结束绘制虚线" if enabled else "绘制跑位虚线"
+	_update_status("正在绘制球员 %s 的跑位虚线" % board.selected_player_id if enabled else "虚线绘制已结束")
 
 func _restart_preview() -> void:
 	playing = true
