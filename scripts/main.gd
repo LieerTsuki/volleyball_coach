@@ -23,6 +23,7 @@ func _ready() -> void:
 	replay.set_tactic(tactic)
 	replay.visible = false
 	replay.editor_requested.connect(_open_editor)
+	replay.save_requested.connect(_save_tactic)
 
 func _open_replay() -> void:
 	tactic = TacticModels.ensure_frames(tactic)

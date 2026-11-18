@@ -14,7 +14,6 @@ var status_label: Label
 var title_label: Label
 var subtitle_label: Label
 var play_button: Button
-var path_mode_button: Button
 var playing := false
 var status_message := "拖动球员圆点调整站位"
 var library_overlay: PanelContainer
@@ -52,7 +51,7 @@ func set_tactic(value: Dictionary) -> void:
 	if title_label:
 		title_label.text = "球阵绘"
 	if subtitle_label:
-		subtitle_label.text = "2D 站位编排 · " + str(tactic.get("title", "未命名战术"))
+		subtitle_label.text = "当前战术 · " + str(tactic.get("title", "未命名战术"))
 	_refresh_frame_strip()
 	_update_status("拖动球员圆点调整第 %d 张" % (selected_frame + 1))
 
@@ -75,12 +74,6 @@ func _build_layout() -> void:
 	var header_row := HBoxContainer.new()
 	header_row.add_theme_constant_override("separation", 18)
 	header.add_child(header_row)
-	var app_icon := TextureRect.new()
-	app_icon.texture = load("res://icon.svg")
-	app_icon.custom_minimum_size = Vector2(70, 70)
-	app_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	app_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	header_row.add_child(app_icon)
 	var title_box := VBoxContainer.new()
 	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(title_box)
@@ -113,7 +106,6 @@ func _build_layout() -> void:
 	board.player_moved.connect(_on_player_moved)
 	board.player_selected.connect(_on_player_selected)
 	board.player_double_clicked.connect(_open_player_editor_by_id)
-	board.route_drawn.connect(_on_route_drawn)
 	board.ball_moved.connect(_on_ball_moved)
 
 	var frames_panel := PanelContainer.new()
@@ -150,14 +142,12 @@ func _build_layout() -> void:
 	status_label.add_theme_color_override("font_color", Color("102b45"))
 	toolbar_column.add_child(status_label)
 	var grid := GridContainer.new()
-	grid.columns = 6
+	grid.columns = 5
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
 	toolbar_column.add_child(grid)
 	grid.add_child(_icon_button("res://assets/ui/player.svg", "增加球员", _add_player))
 	grid.add_child(_icon_button("res://assets/ui/plus_frame.svg", "新增站位图", _next_frame))
-	path_mode_button = _icon_button("res://assets/ui/path.svg", "绘制跑位虚线", _toggle_path_mode)
-	grid.add_child(path_mode_button)
 	play_button = _button("播放 2D", 0, _toggle_play)
 	play_button.icon = load("res://assets/ui/play.svg")
 	play_button.text = ""
@@ -265,12 +255,12 @@ func _on_player_selected(player_id: String) -> void:
 	_update_status("已选择球员 %s，可拖动调整位置" % player_id)
 
 func _on_player_moved(player_id: String, position: Vector3) -> void:
+	var frames: Array = tactic.get("frames", [])
+	if selected_frame < frames.size():
+		var routes: Dictionary = frames[selected_frame].get("routes", {})
+		routes.erase(player_id)
 	document_changed.emit()
 	_update_status("球员 %s 位置 %.1fm / %.1fm" % [player_id, position.x, position.z])
-
-func _on_route_drawn(player_id: String, points: Array) -> void:
-	document_changed.emit()
-	_update_status("已记录球员 %s 的跑位虚线" % player_id)
 
 func _on_ball_moved(position: Vector3) -> void:
 	document_changed.emit()
@@ -337,15 +327,6 @@ func _toggle_play() -> void:
 	play_button.text = ""
 	play_button.tooltip_text = "暂停 2D" if playing else "播放 2D"
 	_update_status("2D 预览已%s" % ("开始" if playing else "暂停"))
-
-func _toggle_path_mode() -> void:
-	if board.selected_player_id.is_empty():
-		_update_status("先点击一名球员，再使用虚线工具")
-		return
-	var enabled := not board.path_mode
-	board.set_path_mode(enabled)
-	path_mode_button.tooltip_text = "结束绘制虚线" if enabled else "绘制跑位虚线"
-	_update_status("正在绘制球员 %s 的跑位虚线" % board.selected_player_id if enabled else "虚线绘制已结束")
 
 func _restart_preview() -> void:
 	playing = true
