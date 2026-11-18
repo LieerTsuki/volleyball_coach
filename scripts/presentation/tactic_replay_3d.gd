@@ -88,7 +88,8 @@ func _rebuild_world() -> void:
 	sphere.radius = 0.16
 	sphere.height = 0.32
 	var ball_material := StandardMaterial3D.new()
-	ball_material.albedo_color = Color("f2d24f")
+	ball_material.albedo_color = Color.WHITE
+	ball_material.albedo_texture = load("res://assets/volleyball.png")
 	ball_material.emission_enabled = true
 	ball_material.emission = Color("5c4b12")
 	sphere.material = ball_material
@@ -114,14 +115,15 @@ func _build_hud() -> void:
 	hud.layer = 20
 	add_child(hud)
 	var top_panel := ColorRect.new()
-	top_panel.color = Color(0.02, 0.04, 0.05, 0.88)
+	top_panel.color = Color("fff6df")
 	top_panel.position = Vector2(0, 0)
 	top_panel.size = Vector2(1080, 112)
 	hud.add_child(top_panel)
 	var title := Label.new()
-	title.text = "精彩回放 · 3D 战术"
+	title.text = "球阵绘 · 3D 回放"
 	title.position = Vector2(160, 20)
 	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color("102b45"))
 	hud.add_child(title)
 	var back_button := Button.new()
 	back_button.text = "‹ 2D 编排"
@@ -135,15 +137,16 @@ func _build_hud() -> void:
 	phase_label = Label.new()
 	phase_label.position = Vector2(160, 68)
 	phase_label.add_theme_font_size_override("font_size", 18)
-	phase_label.add_theme_color_override("font_color", Color("c5e53e"))
+	phase_label.add_theme_color_override("font_color", Color("18aeb4"))
 	hud.add_child(phase_label)
 	time_label = Label.new()
 	time_label.position = Vector2(890, 26)
 	time_label.add_theme_font_size_override("font_size", 34)
+	time_label.add_theme_color_override("font_color", Color("102b45"))
 	hud.add_child(time_label)
 
 	var control_panel := ColorRect.new()
-	control_panel.color = Color(0.02, 0.04, 0.05, 0.94)
+	control_panel.color = Color("fff6df")
 	control_panel.position = Vector2(0, 112)
 	control_panel.size = Vector2(1080, 252)
 	hud.add_child(control_panel)
@@ -155,7 +158,7 @@ func _build_hud() -> void:
 	var speed_label := Label.new()
 	speed_label.text = "路线由 2D 关键帧自动驱动"
 	speed_label.position = Vector2(32, 216)
-	speed_label.add_theme_color_override("font_color", Color("8ca3ad"))
+	speed_label.add_theme_color_override("font_color", Color("102b45"))
 	speed_label.add_theme_font_size_override("font_size", 16)
 	hud.add_child(speed_label)
 	timeline = HSlider.new()

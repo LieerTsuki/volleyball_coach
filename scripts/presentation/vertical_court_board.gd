@@ -97,10 +97,11 @@ func _draw_ball() -> void:
 		return
 	var ball := FrameInterpolator.ball_position(tactic, playback_time_ms) if playback_time_ms >= 0 else _court_ball_position(tactic.get("frames", [])[frame_index])
 	var screen := court_layout.world_to_screen(ball, court_rect)
-	draw_circle(screen, 16.0, Color("ffd24d"))
-	draw_arc(screen, 16.0, 0.0, TAU, 24, Color("102b45"), 3.0)
-	draw_line(screen + Vector2(-9, -7), screen + Vector2(9, 7), Color("102b45"), 2.0)
-	draw_line(screen + Vector2(-7, 9), screen + Vector2(8, -8), Color("102b45"), 2.0)
+	var texture: Texture2D = load("res://assets/volleyball.png")
+	if texture:
+		draw_texture_rect(texture, Rect2(screen - Vector2(30, 30), Vector2(60, 60)), false)
+	else:
+		draw_circle(screen, 16.0, Color("ffd24d"))
 
 func _draw_players() -> void:
 	if tactic.get("frames", []).is_empty():
@@ -112,8 +113,7 @@ func _draw_players() -> void:
 		if playback_time_ms >= 0:
 			position = FrameInterpolator.player_position(tactic, player_id, playback_time_ms)
 		var screen_position := court_layout.world_to_screen(position, court_rect)
-		var is_receiver := bool(player.get("isReceiver", false))
-		var fill := Color("d83524") if not is_receiver else Color("5b9a3b")
+		var fill := Color("2f86d8")
 		if player_id == selected_player_id:
 			draw_circle(screen_position, radius + 10.0, Color(1, 1, 1, 0.38))
 		draw_circle(screen_position, radius, fill)
@@ -196,11 +196,19 @@ func _drag_player(screen_position: Vector2) -> void:
 
 func _finish_interaction() -> void:
 	if path_mode and drawing_path and current_path.size() > 1 and not selected_player_id.is_empty():
-		var frame: Dictionary = tactic.get("frames", [])[frame_index]
+		var frames: Array = tactic.get("frames", [])
+		var frame: Dictionary = frames[frame_index]
 		var routes: Dictionary = frame.get("routes", {})
 		var serialized: Array = []
-		for point in current_path:
+		var start := FrameInterpolator.position_in_frame(frame, selected_player_id)
+		serialized.append({"x": start.x, "z": start.z})
+		var step: int = maxi(1, int(current_path.size() / 16))
+		for index in range(0, current_path.size(), step):
+			var point: Vector3 = current_path[index]
 			serialized.append({"x": point.x, "z": point.z})
+		var next_frame: Dictionary = frames[mini(frame_index + 1, frames.size() - 1)]
+		var target := FrameInterpolator.position_in_frame(next_frame, selected_player_id)
+		serialized.append({"x": target.x, "z": target.z})
 		routes[selected_player_id] = serialized
 		route_drawn.emit(selected_player_id, serialized)
 	current_path.clear()

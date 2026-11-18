@@ -34,7 +34,7 @@ func _process(delta: float) -> void:
 		return
 	var duration: int = FrameInterpolator.total_duration(tactic)
 	var current: int = board.playback_time_ms if board.playback_time_ms >= 0 else 0
-	current += roundi(delta * 1000.0)
+	current += roundi(delta * 1000.0 * 0.55)
 	if current >= duration:
 		current = 0
 	board.set_playback_time(current)
@@ -58,7 +58,7 @@ func set_tactic(value: Dictionary) -> void:
 
 func _build_layout() -> void:
 	var background := ColorRect.new()
-	background.color = Color("153d5c")
+	background.color = Color("fff6df")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
@@ -70,7 +70,7 @@ func _build_layout() -> void:
 
 	var header := PanelContainer.new()
 	header.custom_minimum_size = Vector2(0, 126)
-	header.add_theme_stylebox_override("panel", _panel_style(Color("07131d"), Color("284b62"), 0))
+	header.add_theme_stylebox_override("panel", _panel_style(Color("fff6df"), Color("18aeb4"), 0))
 	root.add_child(header)
 	var header_row := HBoxContainer.new()
 	header_row.add_theme_constant_override("separation", 18)
@@ -87,11 +87,12 @@ func _build_layout() -> void:
 	title_label = Label.new()
 	title_label.text = "球阵绘"
 	title_label.add_theme_font_size_override("font_size", 30)
+	title_label.add_theme_color_override("font_color", Color("102b45"))
 	title_box.add_child(title_label)
 	subtitle_label = Label.new()
 	subtitle_label.text = "2D 站位编排"
 	subtitle_label.add_theme_font_size_override("font_size", 18)
-	subtitle_label.add_theme_color_override("font_color", Color("a8c0ce"))
+	subtitle_label.add_theme_color_override("font_color", Color("ef755a"))
 	title_box.add_child(subtitle_label)
 	var library_button := _icon_button("res://assets/ui/library.svg", "战术库", _open_library)
 	library_button.text = "战术库"
@@ -117,7 +118,7 @@ func _build_layout() -> void:
 
 	var frames_panel := PanelContainer.new()
 	frames_panel.custom_minimum_size = Vector2(0, 162)
-	frames_panel.add_theme_stylebox_override("panel", _panel_style(Color("0e2738"), Color("284b62"), 0))
+	frames_panel.add_theme_stylebox_override("panel", _panel_style(Color("fff6df"), Color("18aeb4"), 0))
 	root.add_child(frames_panel)
 	var frames_column := VBoxContainer.new()
 	frames_column.add_theme_constant_override("separation", 8)
@@ -137,7 +138,7 @@ func _build_layout() -> void:
 
 	var toolbar := PanelContainer.new()
 	toolbar.custom_minimum_size = Vector2(0, 330)
-	toolbar.add_theme_stylebox_override("panel", _panel_style(Color("07131d"), Color("284b62"), 0))
+	toolbar.add_theme_stylebox_override("panel", _panel_style(Color("fff6df"), Color("18aeb4"), 0))
 	root.add_child(toolbar)
 	var toolbar_column := VBoxContainer.new()
 	toolbar_column.add_theme_constant_override("separation", 12)
@@ -146,7 +147,7 @@ func _build_layout() -> void:
 	status_label.text = status_message
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.add_theme_font_size_override("font_size", 20)
-	status_label.add_theme_color_override("font_color", Color("d7e5ea"))
+	status_label.add_theme_color_override("font_color", Color("102b45"))
 	toolbar_column.add_child(status_label)
 	var grid := GridContainer.new()
 	grid.columns = 6
