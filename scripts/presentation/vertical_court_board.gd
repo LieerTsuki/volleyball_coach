@@ -5,8 +5,11 @@ signal player_moved(player_id: String, position: Vector3)
 signal player_selected(player_id: String)
 signal player_double_clicked(player_id: String)
 signal ball_moved(position: Vector3)
+signal point_picked(position: Vector3)
 
+const BALL_TEXTURE := preload("res://assets/volleyball.png")
 var tactic: Dictionary = {}
+var preview_tactic: Dictionary = {}
 var frame_index := 0
 var selected_player_id := ""
 var dragged_player_id := ""
@@ -15,6 +18,8 @@ var court_layout := VerticalCourtLayout.new()
 var court_rect := Rect2()
 var last_tap_player_id := ""
 var last_tap_time_ms := 0
+var point_picker := false
+var target_point: Variant = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -50,65 +55,36 @@ func _draw() -> void:
 	draw_line(Vector2(court_rect.position.x, court_layout.attack_line_screen_y(court_rect, 1)), Vector2(court_rect.end.x, court_layout.attack_line_screen_y(court_rect, 1)), Color("fff7e8"), 4.0)
 	draw_line(Vector2(court_rect.position.x, court_rect.position.y), Vector2(court_rect.end.x, court_rect.position.y), Color("fff7e8"), 4.0)
 	draw_line(Vector2(court_rect.position.x, court_rect.end.y), Vector2(court_rect.end.x, court_rect.end.y), Color("fff7e8"), 4.0)
-	draw_string(ThemeDB.fallback_font, court_rect.position + Vector2(18, 34), "对方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.82))
-	draw_string(ThemeDB.fallback_font, Vector2(court_rect.position.x + 18, center_y + 34), "我方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.92))
-	_draw_routes()
-	_draw_ball()
+	draw_string(ThemeDB.fallback_font, court_rect.position + Vector2(18, 34), "我方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+	draw_string(ThemeDB.fallback_font, Vector2(court_rect.position.x + 18, center_y + 34), "对方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+	if not point_picker:
+		_draw_ball()
 	_draw_players()
-
-func _draw_routes() -> void:
-	var frames: Array = tactic.get("frames", [])
-	if frames.size() < 2 or frame_index >= frames.size() - 1:
-		return
-	var frame: Dictionary = frames[frame_index]
-	var next_frame: Dictionary = frames[frame_index + 1]
-	var routes: Dictionary = frame.get("routes", {})
-	for player in tactic.get("players", []):
-		var player_id := str(player.get("id", ""))
-		var start := FrameInterpolator.position_in_frame(frame, player_id)
-		var end := FrameInterpolator.position_in_frame(next_frame, player_id)
-		var points: Array = routes.get(player_id, [])
-		if points.size() < 2 and start.distance_to(end) > 0.05:
-			points = [{"x": start.x, "z": start.z}, {"x": end.x, "z": end.z}]
-		var color := Color("ef755a") if player_id == selected_player_id else Color("18aeb4")
-		_draw_route_points(points, color)
-	var ball_start := _court_ball_position(frame)
-	var ball_end := _court_ball_position(next_frame)
-	if ball_start.distance_to(ball_end) > 0.05:
-		_draw_route_points([{"x": ball_start.x, "z": ball_start.z}, {"x": ball_end.x, "z": ball_end.z}], Color("ffd24d"))
-
-func _draw_route_points(points: Array, color: Color) -> void:
-	if points.size() < 2:
-		return
-	var first := _route_point_to_screen(points[0])
-	draw_circle(first, 5.0, Color("fff6df"))
-	for index in range(points.size() - 1):
-		var start := _route_point_to_screen(points[index])
-		var end := _route_point_to_screen(points[index + 1])
-		draw_dashed_line(start, end, Color("173b66"), 7.0, 12.0)
-		draw_dashed_line(start, end, color, 3.0, 12.0)
-	var final_end := _route_point_to_screen(points[points.size() - 1])
-	var previous := _route_point_to_screen(points[points.size() - 2])
-	var direction := (final_end - previous).normalized()
-	if direction.length() > 0.01:
-		var side := Vector2(-direction.y, direction.x)
-		draw_colored_polygon(PackedVector2Array([final_end, final_end - direction * 18.0 + side * 8.0, final_end - direction * 18.0 - side * 8.0]), color)
-	draw_circle(final_end, 5.0, color)
-
-func _route_point_to_screen(point: Variant) -> Vector2:
-	var value: Dictionary = point if point is Dictionary else {"x": point.x, "z": point.z}
-	return court_layout.world_to_screen(Vector3(float(value.get("x", 0.0)), 0.0, float(value.get("z", 0.0))), court_rect)
+	if point_picker and target_point != null:
+		var center := court_layout.world_to_screen(target_point, court_rect)
+		var radius := clampf(court_rect.size.x * 0.075, 40.0, 59.0)
+		draw_arc(center, radius, 0.0, TAU, 48, Color("102540"), 10.0, true)
+		draw_arc(center, radius, 0.0, TAU, 48, Color("ebff77"), 5.0, true)
+		if selected_player_id.is_empty():
+			draw_circle(center, 8.0, Color("fff9e2"), true, -1.0, true)
 
 func _draw_ball() -> void:
 	if tactic.get("frames", []).is_empty():
 		return
-	var ball := FrameInterpolator.ball_position(tactic, playback_time_ms) if playback_time_ms >= 0 else _court_ball_position(tactic.get("frames", [])[frame_index])
+	var ball := FrameInterpolator.ball_position_in_frame(tactic.frames[frame_index])
+	if playback_time_ms >= 0:
+		if preview_tactic.has("rallyLeadInMs"):
+			var state := TacticEvaluator.evaluate_ball_at(preview_tactic, _preview_time())
+			if not bool(state.active):
+				return
+			ball = state.position
+		else:
+			ball = FrameInterpolator.ball_position(tactic, playback_time_ms)
 	var screen := court_layout.world_to_screen(ball, court_rect)
-	var texture: Texture2D = load("res://assets/volleyball.png")
-	if texture:
-		draw_texture_rect(texture, Rect2(screen - Vector2(30, 30), Vector2(60, 60)), false)
-	else:
-		draw_circle(screen, 16.0, Color("ffd24d"))
+	draw_texture_rect(BALL_TEXTURE, Rect2(screen - Vector2(30, 30), Vector2(60, 60)), false)
+
+func _preview_time() -> int:
+	return playback_time_ms - int(preview_tactic.get("rallyLeadInMs", 0))
 
 func _draw_players() -> void:
 	if tactic.get("frames", []).is_empty():
@@ -118,7 +94,9 @@ func _draw_players() -> void:
 		var player_id := str(player.get("id", ""))
 		var position := FrameInterpolator.position_in_frame(tactic.get("frames", [])[frame_index], player_id)
 		if playback_time_ms >= 0:
-			position = FrameInterpolator.player_position(tactic, player_id, playback_time_ms)
+			position = FrameInterpolator.player_position(tactic, player_id, _preview_time())
+		if point_picker and player_id == selected_player_id and target_point != null:
+			position = target_point
 		var screen_position := court_layout.world_to_screen(position, court_rect)
 		var fill := Color("2f86d8")
 		if player_id == selected_player_id:
@@ -150,11 +128,15 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 
 func _press_player(screen_position: Vector2) -> void:
+	if point_picker:
+		if court_rect.has_point(screen_position):
+			point_picked.emit(_screen_to_world(screen_position))
+		return
 	if tactic.get("frames", []).is_empty():
 		return
 	var frame: Dictionary = tactic.get("frames", [])[frame_index]
 	var hit_radius := clampf(court_rect.size.x * 0.052, 30.0, 48.0) + 30.0
-	var ball_position := _court_ball_position(frame)
+	var ball_position := FrameInterpolator.ball_position_in_frame(frame)
 	if ball_position.distance_to(_screen_to_world(screen_position)) <= 0.6:
 		dragged_player_id = "__ball__"
 		return
@@ -196,7 +178,3 @@ func _finish_interaction() -> void:
 
 func _screen_to_world(screen_position: Vector2) -> Vector3:
 	return court_layout.screen_to_world(screen_position, court_rect)
-
-func _court_ball_position(frame: Dictionary) -> Vector3:
-	var ball: Dictionary = frame.get("ball", {"x": 0.0, "z": 0.0})
-	return Vector3(float(ball.get("x", 0.0)), 0.0, float(ball.get("z", 0.0)))

@@ -1,103 +1,197 @@
 class_name CourtScene
 extends Node3D
 
+const WOOD := preload("res://scripts/presentation/arena_wood.gdshader")
+const NAVY := Color("172946")
+const CONCOURSE := Color("24496a")
+const CYAN := Color("53e3ff")
+const CORAL := Color("ff7657")
+const INK := Color("0b1428")
+const WHITE := Color("fff4db")
+
+var materials: Dictionary = {}
+
 func build(config: Dictionary) -> void:
 	var width := float(config.get("widthM", 9.0))
 	var length := float(config.get("lengthM", 18.0))
+	var free_zone := float(config.get("freeZoneM", 3.0))
 	var net_height := float(config.get("netHeightM", 2.43))
-	_add_box("ArenaFloor", Vector3(0, -0.24, 0), Vector3(42, 0.18, 34), Color("111a1d"), 0.9)
-	_add_box("CourtFloor", Vector3(0, -0.08, 0), Vector3(width, 0.16, length), Color("c77d42"), 0.78)
-	_add_box("CenterLine", Vector3(0, 0.02, 0), Vector3(width, 0.025, 0.06), Color("fff2d3"), 0.65)
-	_add_box("AttackLineHome", Vector3(0, 0.03, -float(config.get("attackLineOffsetM", 3.0))), Vector3(width, 0.025, 0.045), Color("fff2d3"), 0.65)
-	_add_box("AttackLineAway", Vector3(0, 0.03, float(config.get("attackLineOffsetM", 3.0))), Vector3(width, 0.025, 0.045), Color("fff2d3"), 0.65)
-	_add_box("SidelineLeft", Vector3(-width * 0.5, 0.03, 0), Vector3(0.045, 0.025, length), Color("fff2d3"), 0.65)
-	_add_box("SidelineRight", Vector3(width * 0.5, 0.03, 0), Vector3(0.045, 0.025, length), Color("fff2d3"), 0.65)
-	_add_box("EndlineHome", Vector3(0, 0.03, -length * 0.5), Vector3(width, 0.025, 0.045), Color("fff2d3"), 0.65)
-	_add_box("EndlineAway", Vector3(0, 0.03, length * 0.5), Vector3(width, 0.025, 0.045), Color("fff2d3"), 0.65)
+	var half_width := width * 0.5
+	var half_length := length * 0.5
+
+	_box(Vector3(0, -0.32, 0), Vector3(44, 0.32, 48), INK)
+	_box(Vector3(0, -0.14, 0), Vector3(width + 2 * free_zone, 0.18, length + 2 * free_zone), CONCOURSE)
+	var floor_material := ShaderMaterial.new()
+	floor_material.shader = WOOD
+	var floor_mesh := BoxMesh.new()
+	floor_mesh.size = Vector3(width, 0.12, length)
+	_instance(floor_mesh, Vector3(0, -0.06, 0), floor_material)
+	_box(Vector3(0, 0.008, 0), Vector3(width, 0.012, 0.05), WHITE)
+	for side in [-1.0, 1.0]:
+		var team_color := CYAN if side < 0.0 else CORAL
+		var attack_z: float = side * float(config.get("attackLineOffsetM", 3.0))
+		_box(Vector3(side * half_width, 0.008, 0), Vector3(0.05, 0.012, length), WHITE)
+		_box(Vector3(0, 0.008, attack_z), Vector3(width, 0.012, 0.05), WHITE)
+		_box(Vector3(0, 0.008, side * half_length), Vector3(width, 0.012, 0.05), WHITE)
+		_box(Vector3(0, -0.043, side * (half_length + 1.27)), Vector3(width, 0.012, 0.14), team_color)
+		_box(Vector3(side * (half_width + free_zone - 0.12), -0.043, 0), Vector3(0.05, 0.012, length + 2 * free_zone), CYAN)
+		for bench in range(3):
+			var z := -5.0 + bench * 4.0
+			_box(Vector3(side * (half_width + 1.75), 0.19, z), Vector3(0.38, 0.45, 1.6), NAVY)
+			_box(Vector3(side * (half_width + 1.75), 0.426, z), Vector3(0.39, 0.04, 1.6), team_color)
+
 	_add_net(width, net_height)
-	_add_stands()
-	_add_scoreboard()
-	_add_lights()
+	_add_stand(Vector3(-half_width - free_zone - 1.55, 0, 0), -PI * 0.5, 21)
+	_add_stand(Vector3(0, 0, half_length + free_zone + 1.40), 0.0, 18)
+	_add_scoreboard(half_length + free_zone + 3.60)
+	_add_walls(half_width + free_zone + 5.7, half_length + free_zone + 5.7)
 
-func _add_net(width: float, net_height: float) -> void:
-	_add_box("NetTop", Vector3(0, net_height, 0), Vector3(width, 0.08, 0.08), Color("f1f4e9"), 0.45)
-	_add_box("NetBottom", Vector3(0, 0.35, 0), Vector3(width, 0.035, 0.035), Color("b9d3d3"), 0.55)
-	for index in range(1, 14):
-		var x := -width * 0.5 + float(index) * width / 14.0
-		_add_box("NetV%d" % index, Vector3(x, net_height * 0.67, 0), Vector3(0.018, net_height * 0.67, 0.025), Color("c8dddd"), 0.5)
-	for index in range(1, 7):
-		var y := 0.35 + float(index) * (net_height - 0.35) / 7.0
-		_add_box("NetH%d" % index, Vector3(0, y, 0), Vector3(width, 0.018, 0.025), Color("c8dddd"), 0.5)
-	_add_cylinder("PostHome", Vector3(-width * 0.5 - 0.18, net_height * 0.5, 0), 0.1, net_height + 0.5, Color("19252d"))
-	_add_cylinder("PostAway", Vector3(width * 0.5 + 0.18, net_height * 0.5, 0), 0.1, net_height + 0.5, Color("19252d"))
-	_add_box("PostBandHome", Vector3(-width * 0.5 - 0.18, net_height - 0.2, 0), Vector3(0.26, 0.28, 0.12), Color("c5e53e"), 0.6)
-	_add_box("PostBandAway", Vector3(width * 0.5 + 0.18, net_height - 0.2, 0), Vector3(0.26, 0.28, 0.12), Color("c5e53e"), 0.6)
+func _add_net(width: float, height: float) -> void:
+	var span := width + 0.70
+	var bottom := height - 0.97
+	_box(Vector3(0, height, 0), Vector3(span, 0.07, 0.046), WHITE)
+	_box(Vector3(0, bottom, 0), Vector3(span, 0.026, 0.024), WHITE)
+	var mesh_size := Vector2i(65, 7)
+	var strands: Array[Transform3D] = []
+	var spacing := span / mesh_size.x
+	for index in range(mesh_size.x + 1):
+		strands.append(Transform3D(Basis.from_scale(Vector3(0.012, height - bottom, 0.012)), Vector3(index * spacing - span / 2.0, (height + bottom) * 0.5, 0)))
+	for index in range(1, mesh_size.y):
+		var y := lerpf(bottom, height, float(index) / mesh_size.y)
+		strands.append(Transform3D(Basis.from_scale(Vector3(span, 0.012, 0.012)), Vector3(0, y, 0)))
+	_batch(BoxMesh.new(), strands, [], _material(Color("b2cbcb")))
+	for side in [-1.0, 1.0]:
+		var x: float = side * (width * 0.5 + 0.35)
+		_box(Vector3(x, height * 0.5, 0), Vector3(0.13, height + 0.35, 0.13), WHITE)
+		_box(Vector3(x, 0.83, 0), Vector3(0.30, 1.66, 0.30), CYAN if side < 0.0 else CORAL)
+		_box(Vector3(x, height + 0.37, 0), Vector3(0.035, 0.56, 0.035), CORAL)
 
-func _add_stands() -> void:
+func _add_stand(origin: Vector3, yaw: float, seats: int) -> void:
+	var stand := Node3D.new()
+	stand.position = origin
+	stand.rotation.y = yaw
+	add_child(stand)
+	var people: Array[Transform3D] = []
+	var heads: Array[Transform3D] = []
+	var shirts: Array[Color] = []
+	var faces: Array[Color] = []
+	var width := seats * 0.86 + 0.9
+	var palette := [Color("315b8c"), Color("55afd1"), Color("e99069"), Color("809db1"), Color("645292")]
+	var skin := [Color("d59b79"), Color("a66b4f"), Color("edba93")]
 	for row in range(4):
-		var z_front := 13.0 + float(row) * 1.35
-		for seat in range(22):
-			var x := -14.0 + float(seat) * 1.33
-			var color := Color("c5e53e") if (seat + row) % 4 == 0 else Color("252f34")
-			_add_box("SeatFront_%d_%d" % [row, seat], Vector3(x, 0.15 + float(row) * 0.45, z_front), Vector3(0.78, 0.55, 0.55), color, 0.95)
-			_add_box("SeatBack_%d_%d" % [row, seat], Vector3(x, 0.15 + float(row) * 0.45, -z_front), Vector3(0.78, 0.55, 0.55), color, 0.95)
-	_add_box("BackWall", Vector3(0, 6.0, 18.0), Vector3(42, 12, 0.35), Color("1b2328"), 0.95)
-	_add_box("FrontWall", Vector3(0, 6.0, -18.0), Vector3(42, 12, 0.35), Color("1b2328"), 0.95)
-	_add_box("LeftWall", Vector3(-21, 6.0, 0), Vector3(0.35, 12, 34), Color("171f24"), 0.95)
-	_add_box("RightWall", Vector3(21, 6.0, 0), Vector3(0.35, 12, 34), Color("171f24"), 0.95)
-	_add_box("NeonBannerLeft", Vector3(-10.5, 5.6, 17.75), Vector3(7.5, 0.22, 0.12), Color("c5e53e"), 0.6)
-	_add_box("NeonBannerRight", Vector3(10.5, 5.6, 17.75), Vector3(7.5, 0.22, 0.12), Color("c5e53e"), 0.6)
-	_add_label("ArenaLabel", "COURT 01", Vector3(-2.9, 7.4, 17.65), 48, Color("e8ff8c"))
+		var y := 0.34 + row * 0.48
+		var z := row * 0.97
+		_box(Vector3(0, y * 0.5 - 0.13, z), Vector3(width, y, 0.97), NAVY, stand)
+		_box(Vector3(0, y - 0.108, z - 0.47), Vector3(width, 0.046, 0.04), CONCOURSE, stand)
+		for seat in range(seats):
+			if seat == seats / 2 or (seat * 3 + row * 7) % 11 < 2:
+				continue
+			var x := (seat - (seats - 1) * 0.5) * 0.86
+			people.append(Transform3D(Basis.IDENTITY, Vector3(x, y + 0.17, z)))
+			heads.append(Transform3D(Basis.IDENTITY, Vector3(x, y + 0.49 + 0.035 * ((seat + row) % 3), z)))
+			shirts.append(palette[(seat + 2 * row) % palette.size()])
+			faces.append(skin[(seat * 2 + row) % skin.size()])
 
-func _add_scoreboard() -> void:
-	_add_box("Scoreboard", Vector3(0, 8.3, 17.55), Vector3(10.5, 3.2, 0.4), Color("080d10"), 0.92)
-	_add_label("ScoreLabel", "HOME   17     06   AWAY", Vector3(-4.25, 8.45, 17.25), 52, Color("f6f3e6"))
-	_add_label("ScoreSubLabel", "VOLLEYBALL  /  SET 2", Vector3(-2.5, 7.55, 17.25), 24, Color("c5e53e"))
+	var shirt_mesh := CapsuleMesh.new()
+	shirt_mesh.radius = 0.21
+	shirt_mesh.height = 0.54
+	shirt_mesh.radial_segments = 6
+	shirt_mesh.rings = 2
+	var head_mesh := SphereMesh.new()
+	head_mesh.radius = 0.128
+	head_mesh.height = 0.256
+	head_mesh.radial_segments = 7
+	head_mesh.rings = 3
+	var crowd_material := StandardMaterial3D.new()
+	crowd_material.vertex_color_use_as_albedo = true
+	_batch(shirt_mesh, people, shirts, crowd_material, stand)
+	_batch(head_mesh, heads, faces, crowd_material, stand)
+	_box(Vector3(0, 2.15, 3.55), Vector3(width, 0.95, 0.32), INK, stand)
+	_glow(Vector3(0, 2.27, 3.37), Vector3(width, 0.045, 0.032), CYAN, stand)
+	_glow(Vector3(0, 0.17, -0.49), Vector3(width, 0.09, 0.041), CYAN, stand)
 
-func _add_lights() -> void:
-	for position in [Vector3(-11, 10, -8), Vector3(11, 10, -8), Vector3(-11, 10, 8), Vector3(11, 10, 8)]:
-		var light := OmniLight3D.new()
-		light.position = position
-		light.omni_range = 28.0
-		light.light_energy = 7.0
-		light.light_color = Color("fff1d0")
-		add_child(light)
+func _add_scoreboard(z: float) -> void:
+	_box(Vector3(0, 4.3, z), Vector3(8.4, 2.9, 0.44), INK)
+	_glow(Vector3(0, 5.68, z - 0.25), Vector3(8.4, 0.07, 0.045), CYAN)
+	_glow(Vector3(3.72, 4.3, z - 0.25), Vector3(0.09, 1.94, 0.05), CYAN)
+	_glow(Vector3(-3.72, 4.3, z - 0.25), Vector3(0.09, 1.94, 0.05), CORAL)
+	_label("VOLLEYSKETCH", Vector3(0, 5.10, z - 0.26), 0.008, WHITE)
+	_label("HOME", Vector3(2.05, 4.07, z - 0.26), 0.013, CYAN)
+	_label("VS", Vector3(0, 4.07, z - 0.26), 0.009, WHITE)
+	_label("AWAY", Vector3(-2.05, 4.07, z - 0.26), 0.013, CORAL)
 
-func _add_box(node_name: String, center: Vector3, size: Vector3, color: Color, roughness: float) -> void:
+func _add_walls(side: float, back: float) -> void:
+	var wall := Color("142039")
+	_box(Vector3(0, 3.45, back), Vector3(side * 2.1, 7.1, 0.36), wall)
+	_box(Vector3(-side, 3.45, 0), Vector3(0.36, 7.1, back * 2.0), wall)
+	_glow(Vector3(0, 6.32, back - 0.22), Vector3(side * 2.0, 0.06, 0.05), CYAN)
+	_glow(Vector3(-side + 0.22, 6.32, 0), Vector3(0.05, 0.06, back * 1.95), CYAN)
+	for bay in range(-3, 4):
+		_box(Vector3(bay * side / 3.0, 3.45, back - 0.24), Vector3(0.32, 7.0, 0.24), NAVY)
+		_box(Vector3(-side + 0.24, 3.45, bay * back / 3.0), Vector3(0.24, 7.0, 0.32), NAVY)
+	for x in [-8.4, 8.4]:
+		var p := Vector3(x, 6.92, back - 0.76)
+		_box(p + Vector3.UP * 0.15, Vector3(3.7, 0.26, 1.22), NAVY)
+		for index in range(6):
+			_glow(p + Vector3(-1.4 + 0.56 * index, 0, 0), Vector3(0.43, 0.15, 0.52), WHITE)
+
+func _material(color: Color, glowing: bool = false) -> StandardMaterial3D:
+	var key := Vector2i(color.to_rgba32(), int(glowing))
+	if not materials.has(key):
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.roughness = 0.82
+		if glowing:
+			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		materials[key] = material
+	return materials[key]
+
+func _box(center: Vector3, size: Vector3, color: Color, parent: Node3D = null) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = roughness
+	_instance(mesh, center, _material(color), parent)
+
+func _glow(center: Vector3, size: Vector3, color: Color, parent: Node3D = null) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	_instance(mesh, center, _material(color, true), parent)
+
+func _instance(mesh: PrimitiveMesh, center: Vector3, material: Material, parent: Node3D = null) -> void:
 	mesh.material = material
 	var node := MeshInstance3D.new()
-	node.name = node_name
 	node.mesh = mesh
 	node.position = center
-	add_child(node)
+	if parent == null:
+		add_child(node)
+	else:
+		parent.add_child(node)
 
-func _add_cylinder(node_name: String, center: Vector3, radius: float, height: float, color: Color) -> void:
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = height
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.45
+func _batch(mesh: PrimitiveMesh, transforms: Array[Transform3D], colors: Array[Color], material: Material, parent: Node3D = null) -> void:
 	mesh.material = material
-	var node := MeshInstance3D.new()
-	node.name = node_name
-	node.mesh = mesh
-	node.position = center
-	add_child(node)
+	var batch := MultiMesh.new()
+	batch.transform_format = MultiMesh.TRANSFORM_3D
+	batch.use_colors = not colors.is_empty()
+	batch.mesh = mesh
+	batch.instance_count = transforms.size()
+	for index in range(transforms.size()):
+		batch.set_instance_transform(index, transforms[index])
+		if batch.use_colors:
+			batch.set_instance_color(index, colors[index])
+	var node := MultiMeshInstance3D.new()
+	node.multimesh = batch
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if parent == null:
+		add_child(node)
+	else:
+		parent.add_child(node)
 
-func _add_label(node_name: String, text: String, position: Vector3, font_size: int, color: Color) -> void:
+func _label(text: String, center: Vector3, pixel_size: float, color: Color) -> void:
 	var label := Label3D.new()
-	label.name = node_name
 	label.text = text
-	label.font_size = font_size
+	label.font_size = 64
+	label.pixel_size = pixel_size
 	label.modulate = color
-	label.position = position
-	label.outline_size = 12
-	label.outline_modulate = Color("050708")
+	label.position = center
+	label.rotation.y = PI
+	label.outline_size = 0
 	add_child(label)

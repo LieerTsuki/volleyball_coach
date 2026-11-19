@@ -4,6 +4,7 @@ extends Control
 signal replay_requested
 signal save_requested
 signal document_changed
+signal document_opened
 
 var tactic: Dictionary = {}
 var repository: TacticRepository
@@ -15,13 +16,17 @@ var title_label: Label
 var subtitle_label: Label
 var play_button: Button
 var playing := false
+var preview_time_ms := 0.0
 var status_message := "拖动球员圆点调整站位"
+var save_failed := false
+var session_update_failed := false
 var library_overlay: PanelContainer
 var player_overlay: PanelContainer
 var player_number_input: LineEdit
 var player_name_input: LineEdit
 var library_list: VBoxContainer
 var player_role_input: OptionButton
+var rally_editor: RallyActionEditor
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -31,12 +36,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not playing or tactic.is_empty() or not board:
 		return
-	var duration: int = FrameInterpolator.total_duration(tactic)
-	var current: int = board.playback_time_ms if board.playback_time_ms >= 0 else 0
-	current += roundi(delta * 1000.0 * 0.55)
-	if current >= duration:
-		current = 0
-	board.set_playback_time(current)
+	var duration := FrameInterpolator.total_duration(tactic) + int(board.preview_tactic.get("rallyLeadInMs", 0))
+	preview_time_ms = fposmod(preview_time_ms + delta * 1000.0, duration)
+	board.set_playback_time(roundi(preview_time_ms))
 
 
 func set_repository(value: TacticRepository) -> void:
@@ -46,6 +48,7 @@ func set_tactic(value: Dictionary) -> void:
 	tactic = TacticModels.ensure_frames(value)
 	selected_frame = clampi(selected_frame, 0, max(0, tactic.get("frames", []).size() - 1))
 	if board:
+		stop_preview()
 		board.set_tactic(tactic)
 		board.set_frame(selected_frame)
 	if title_label:
@@ -95,6 +98,9 @@ func _build_layout() -> void:
 	save_button.text = "保存"
 	save_button.custom_minimum_size = Vector2(132, 76)
 	header_row.add_child(save_button)
+	for button in [library_button, save_button]:
+		for color_slot in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			button.add_theme_color_override(color_slot, Color("102b45"))
 
 	var board_panel := PanelContainer.new()
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -118,6 +124,7 @@ func _build_layout() -> void:
 	var frames_title := Label.new()
 	frames_title.text = "站位图序列"
 	frames_title.add_theme_font_size_override("font_size", 20)
+	frames_title.add_theme_color_override("font_color", Color("274e62"))
 	frames_column.add_child(frames_title)
 	var frame_scroll := ScrollContainer.new()
 	frame_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
@@ -157,6 +164,9 @@ func _build_layout() -> void:
 	grid.add_child(_icon_button("res://assets/ui/play_3d.svg", "进入 3D 回放", _open_replay))
 	for child in grid.get_children():
 		child.custom_minimum_size = Vector2(0, 96)
+	var rally_button := _button("球路与动作  ›", 0, _open_rally_editor)
+	rally_button.custom_minimum_size.y = 94
+	toolbar_column.add_child(rally_button)
 
 func _button(text: String, width: int, callback: Callable) -> Button:
 	var button := Button.new()
@@ -232,7 +242,11 @@ func _refresh_frame_strip() -> void:
 	for index in range(tactic.get("frames", []).size()):
 		var frame: Dictionary = tactic.get("frames", [])[index]
 		var button := Button.new()
-		button.text = "第 %d 张\n%d ms" % [index + 1, int(frame.get("durationMs", 800))]
+		var action: Dictionary = frame.get("rallyAction", {})
+		var detail := "%d ms" % int(frame.get("durationMs", 800))
+		if RallyPlan.LABELS.has(action.get("type", "")):
+			detail = "%s %s" % [RallyPlan.LABELS[action.type], RallyPlan.player_tag(tactic, str(action.playerId))]
+		button.text = "第 %d 张\n%s" % [index + 1, detail]
 		button.custom_minimum_size = Vector2(148, 82)
 		button.add_theme_font_size_override("font_size", 19)
 		button.add_theme_stylebox_override("normal", _button_style(Color("274e62"), Color("75c9c8")))
@@ -243,11 +257,8 @@ func _refresh_frame_strip() -> void:
 
 func _select_frame(index: int) -> void:
 	selected_frame = index
-	playing = false
-	if play_button:
-		play_button.text = "播放 2D"
+	stop_preview()
 	board.set_frame(selected_frame)
-	board.set_playback_time(-1)
 	_refresh_frame_strip()
 	_update_status("已选择第 %d 张站位图" % (selected_frame + 1))
 
@@ -255,14 +266,15 @@ func _on_player_selected(player_id: String) -> void:
 	_update_status("已选择球员 %s，可拖动调整位置" % player_id)
 
 func _on_player_moved(player_id: String, position: Vector3) -> void:
-	var frames: Array = tactic.get("frames", [])
-	if selected_frame < frames.size():
-		var routes: Dictionary = frames[selected_frame].get("routes", {})
-		routes.erase(player_id)
+	if playing:
+		stop_preview()
 	document_changed.emit()
 	_update_status("球员 %s 位置 %.1fm / %.1fm" % [player_id, position.x, position.z])
 
 func _on_ball_moved(position: Vector3) -> void:
+	if playing:
+		stop_preview()
+	tactic["ballKeyframesEdited"] = true
 	document_changed.emit()
 	_update_status("排球位置 %.1fm / %.1fm" % [position.x, position.z])
 
@@ -270,7 +282,8 @@ func _next_frame() -> void:
 	var frames: Array = tactic.get("frames", [])
 	if frames.is_empty():
 		return
-	var copy: Dictionary = JSON.parse_string(JSON.stringify(frames[selected_frame]))
+	var copy: Dictionary = frames[selected_frame].duplicate(true)
+	copy.erase("rallyAction")
 	copy["id"] = "frame-%d" % frames.size()
 	copy["durationMs"] = 800
 	frames.append(copy)
@@ -279,9 +292,10 @@ func _next_frame() -> void:
 	_update_status("已复制上一张，拖动需要跑位的球员")
 
 func _add_player() -> void:
+	stop_preview()
 	var players: Array = tactic.get("players", [])
 	var number := players.size() + 1
-	var player_id := "p%d" % number
+	var player_id := "p-" + Crypto.new().generate_random_bytes(8).hex_encode()
 	players.append({"id": player_id, "jerseyNumber": str(number), "name": "球员 %d" % number, "role": "主攻", "isReceiver": false})
 	for frame in tactic.get("frames", []):
 		var positions: Dictionary = frame.get("positions", {})
@@ -296,6 +310,7 @@ func _delete_selected_player() -> void:
 	if player_id.is_empty():
 		_update_status("请先点击要删除的球员")
 		return
+	stop_preview()
 	for index in range(tactic.get("players", []).size()):
 		if str(tactic.players[index].get("id", "")) == player_id:
 			tactic.players.remove_at(index)
@@ -303,6 +318,8 @@ func _delete_selected_player() -> void:
 	for frame in tactic.get("frames", []):
 		var positions: Dictionary = frame.get("positions", {})
 		positions.erase(player_id)
+	RallyPlan.remove_player_actions(tactic, player_id)
+	_refresh_frame_strip()
 	board.selected_player_id = ""
 	board.set_tactic(tactic)
 	document_changed.emit()
@@ -313,35 +330,70 @@ func _delete_frame() -> void:
 	if frames.size() <= 1:
 		_update_status("至少保留一张站位图")
 		return
+	stop_preview()
+	var cleared_pass := false
+	if selected_frame > 0:
+		var previous: Dictionary = frames[selected_frame - 1].get("rallyAction", {})
+		if previous.has("targetPlayerId"):
+			cleared_pass = frames[selected_frame - 1].erase("rallyAction")
 	frames.remove_at(selected_frame)
 	selected_frame = mini(selected_frame, frames.size() - 1)
 	board.set_tactic(tactic)
 	board.set_frame(selected_frame)
 	_refresh_frame_strip()
 	document_changed.emit()
-	_update_status("已删除当前站位图")
+	_update_status("已删除当前站位图及上一张关联传球" if cleared_pass else "已删除当前站位图")
 
 func _toggle_play() -> void:
 	playing = not playing
+	preview_time_ms = 0.0
+	board.preview_tactic = RallyPlan.compile(tactic) if playing else {}
 	board.set_playback_time(0 if playing else -1)
 	play_button.text = ""
 	play_button.tooltip_text = "暂停 2D" if playing else "播放 2D"
 	_update_status("2D 预览已%s" % ("开始" if playing else "暂停"))
 
-func _restart_preview() -> void:
-	playing = true
-	board.set_playback_time(0)
-	play_button.text = ""
-	play_button.tooltip_text = "暂停 2D"
-	_update_status("2D 预览从第 1 张开始")
-
 func _open_replay() -> void:
 	replay_requested.emit()
+
+func stop_preview() -> void:
+	playing = false
+	preview_time_ms = 0.0
+	board.preview_tactic = {}
+	board.set_playback_time(-1)
+	play_button.text = ""
+	play_button.tooltip_text = "播放 2D"
+
+func _open_rally_editor() -> void:
+	stop_preview()
+	if rally_editor == null:
+		rally_editor = RallyActionEditor.new()
+		rally_editor.hide()
+		add_child(rally_editor)
+		rally_editor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rally_editor.action_changed.connect(_on_rally_changed)
+	rally_editor.open_frame(tactic, selected_frame)
+
+func _on_rally_changed() -> void:
+	board.queue_redraw()
+	_refresh_frame_strip()
+	document_changed.emit()
+	_update_status("第 %d 张动作已更新" % (selected_frame + 1))
 
 func _save() -> void:
 	tactic.updatedAt = Time.get_datetime_string_from_system(true)
 	save_requested.emit()
-	_update_status("战术已保存")
+
+func show_save_result(error: Error, explicit := false) -> void:
+	save_failed = error != OK
+	if explicit:
+		_update_status("战术已保存" if not save_failed else "保存战术")
+	else:
+		_update_status(status_message)
+
+func show_session_result(error: Error) -> void:
+	session_update_failed = error != OK
+	_update_status(status_message)
 
 func _back_pressed() -> void:
 	_update_status("当前已是战术编辑首页")
@@ -350,8 +402,13 @@ func _update_status(text: String) -> void:
 	status_message = text
 	if status_label:
 		status_label.text = status_message
+		if save_failed:
+			status_label.text += " · 写入存档失败"
+		if session_update_failed:
+			status_label.text += " · 启动恢复设置未保存"
 
 func _open_player_editor() -> void:
+	stop_preview()
 	var player_id := board.selected_player_id if board else ""
 	if player_id.is_empty():
 		_update_status("请先点击球员，再编辑资料")
@@ -444,6 +501,7 @@ func _open_library() -> void:
 	if repository == null:
 		_update_status("战术库尚未连接")
 		return
+	stop_preview()
 	_ensure_library_overlay()
 	_refresh_library()
 	library_overlay.visible = true
@@ -465,6 +523,7 @@ func _ensure_library_overlay() -> void:
 	heading.add_theme_font_size_override("font_size", 32)
 	column.add_child(heading)
 	library_list = VBoxContainer.new()
+	library_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	library_list.add_theme_constant_override("separation", 12)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -487,6 +546,8 @@ func _refresh_library() -> void:
 		row.custom_minimum_size = Vector2(0, 86)
 		var open := _button(str(item.get("title", "未命名战术")), 0, func(): _load_tactic_from_library(str(item.get("id", ""))))
 		var delete := _button("删除", 140, func(): _delete_tactic_from_library(str(item.get("id", ""))))
+		delete.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		delete.disabled = item.get("id", "") == "sample-three-receiver-fast-middle"
 		row.add_child(open)
 		row.add_child(delete)
 		library_list.add_child(row)
@@ -494,10 +555,8 @@ func _refresh_library() -> void:
 func _new_tactic() -> void:
 	if repository == null:
 		return
-	tactic = repository.create_blank()
 	selected_frame = 0
-	board.set_tactic(tactic)
-	_refresh_frame_strip()
+	set_tactic(TacticModels.blank_tactic())
 	_close_library()
 	document_changed.emit()
 	_update_status("已创建新战术")
@@ -506,20 +565,23 @@ func _load_tactic_from_library(tactic_id: String) -> void:
 	var loaded := repository.load_by_id(tactic_id) if repository else {}
 	if loaded.is_empty():
 		return
-	tactic = loaded
 	selected_frame = 0
-	board.set_tactic(tactic)
-	_refresh_frame_strip()
+	set_tactic(loaded)
 	_close_library()
-	document_changed.emit()
+	document_opened.emit()
 	_update_status("已打开战术：" + str(tactic.get("title", "")))
 
 func _delete_tactic_from_library(tactic_id: String) -> void:
 	if repository and repository.delete_tactic(tactic_id):
+		if str(tactic.get("id", "")) == tactic_id:
+			selected_frame = 0
+			set_tactic(repository.ensure_sample())
+			document_opened.emit()
+			_close_library()
 		_refresh_library()
 		_update_status("已从战术库删除")
 	else:
-		_update_status("内置示例不能删除")
+		_update_status("内置示例不能删除" if tactic_id == "sample-three-receiver-fast-middle" else "删除战术失败")
 
 func _close_library() -> void:
 	if library_overlay:

@@ -4,282 +4,399 @@ extends Node3D
 signal editor_requested
 signal save_requested
 
+const MATCH_BALL := preload("res://scripts/presentation/match_ball.gdshader")
+const INK := Color("0b1326")
+const PANEL := Color("131e34")
+const LINE := Color("293e58")
+const WHITE := Color("f5f4e8")
+const MIST := Color("aabed2")
+const CYAN := Color("6de9ff")
+const LIME := Color("e3ff69")
+const CORAL := Color("ff967a")
+
 var tactic: Dictionary = {}
+var evaluated_tactic: Dictionary = {}
 var actors: Dictionary = {}
-var opponents: Dictionary = {}
+var world: Node3D
+var viewport_3d: SubViewport
 var ball: MeshInstance3D
+var ball_marker: MeshInstance3D
+var landing_marker: MeshInstance3D
 var camera: Camera3D
+var camera_mode := "oblique"
 var hud: CanvasLayer
 var phase_label: Label
-var tactic_title_label: Label
+var title_label: Label
 var time_label: Label
 var timeline: HSlider
+var play_button: Button
+var speed_button: Button
+var camera_buttons := ButtonGroup.new()
+var save_button: Button
 var playing := false
+var speed := 1.0
 var time_ms := 0.0
-var duration_ms := 4000
-var built := false
+var duration_ms := 1
+var lead_in_ms := 0
 
 func _ready() -> void:
 	_build_hud()
-	if not tactic.is_empty():
-		_rebuild_world()
+	visibility_changed.connect(_sync_visibility)
+	_sync_visibility()
 
 func set_tactic(value: Dictionary) -> void:
 	tactic = TacticModels.ensure_frames(value)
-	if tactic_title_label:
-		tactic_title_label.text = "当前战术 · " + str(tactic.get("title", "未命名战术"))
-	duration_ms = FrameInterpolator.total_duration(tactic)
-	time_ms = clampf(time_ms, 0.0, float(duration_ms))
-	if is_inside_tree():
-		_rebuild_world()
+	evaluated_tactic = RallyPlan.compile(tactic)
+	lead_in_ms = int(evaluated_tactic.get("rallyLeadInMs", 0))
+	title_label.text = str(tactic.get("title", "未命名战术"))
+	save_button.text = "保存"
+	duration_ms = FrameInterpolator.total_duration(tactic) + lead_in_ms
+	time_ms = 0.0
+	timeline.set_value_no_signal(time_ms)
+	timeline.max_value = duration_ms
+	_rebuild_world()
+	_apply_at(0)
 
 func _process(delta: float) -> void:
-	if not visible or not playing:
+	if not is_visible_in_tree() or not playing:
 		return
-	time_ms += delta * 1000.0 * 0.65
+	time_ms = minf(time_ms + delta * 1000.0 * speed, duration_ms)
 	if time_ms >= duration_ms:
-		time_ms = 0.0
+		_set_playing(false)
 	_apply_at(roundi(time_ms))
-	if timeline:
-		timeline.set_value_no_signal(time_ms)
+
+func _sync_visibility() -> void:
+	hud.visible = is_visible_in_tree()
+	viewport_3d.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if hud.visible else SubViewport.UPDATE_DISABLED
+	if not hud.visible:
+		_set_playing(false)
 
 func _rebuild_world() -> void:
-	for child in get_children():
-		if child != hud:
-			child.free()
+	if world:
+		world.free()
 	actors.clear()
-	opponents.clear()
-	ball = null
-	var environment := WorldEnvironment.new()
-	var world := Environment.new()
-	world.background_mode = Environment.BG_COLOR
-	world.background_color = Color("060b0e")
-	world.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	world.ambient_light_color = Color("b9c9cc")
-	world.ambient_light_energy = 0.55
-	environment.environment = world
-	add_child(environment)
+	world = Node3D.new()
+	viewport_3d.add_child(world)
+
+	var sky := WorldEnvironment.new()
+	var room := Environment.new()
+	room.background_mode = Environment.BG_COLOR
+	room.background_color = INK
+	room.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	room.ambient_light_color = Color("cedff5")
+	room.ambient_light_energy = 0.62
+	sky.environment = room
+	world.add_child(sky)
 
 	var court := CourtScene.new()
-	add_child(court)
+	world.add_child(court)
 	court.build(tactic.get("courtConfig", TacticModels.default_court()))
-
 	camera = Camera3D.new()
-	camera.current = true
-	add_child(camera)
-	_set_camera("oblique")
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	world.add_child(camera)
+	camera.make_current()
+	_fit_camera()
 
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52, -28, 0)
-	sun.light_energy = 1.6
-	sun.shadow_enabled = true
-	add_child(sun)
+	var key_light := DirectionalLight3D.new()
+	key_light.rotation_degrees = Vector3(-60, -27, 0)
+	key_light.light_color = Color("fff1dd")
+	key_light.light_energy = 0.98
+	key_light.shadow_enabled = true
+	key_light.directional_shadow_max_distance = 55.0
+	world.add_child(key_light)
 
 	for definition in tactic.get("players", []):
 		var actor := PlayerActor.new()
-		add_child(actor)
+		world.add_child(actor)
 		actor.setup(definition)
-		actors[str(definition.get("id", ""))] = actor
+		actors[str(definition.id)] = actor
+	_add_opponents()
+	_add_ball()
 
-	for definition in _opponent_definitions():
+func _add_opponents() -> void:
+	var formation := [Vector2(-3.1, 1.55), Vector2(0.0, 1.85), Vector2(3.0, 1.55),
+		Vector2(-3.1, 6.2), Vector2(0.0, 7.4), Vector2(3.0, 6.2)]
+	var config: Dictionary = tactic.get("courtConfig", TacticModels.default_court())
+	var x_scale := float(config.get("widthM", 9.0)) / 9.0
+	var z_scale := float(config.get("lengthM", 18.0)) / 18.0
+	for index in range(formation.size()):
+		var slot: Vector2 = formation[index]
 		var opponent := PlayerActor.new()
-		add_child(opponent)
-		opponent.setup(definition)
-		opponent.position = Vector3(float(definition.get("x", 0.0)), 0.0, float(definition.get("z", 0.0)))
-		opponents[str(definition.get("id", ""))] = opponent
+		opponent.position = Vector3(slot.x * x_scale, 0, slot.y * z_scale)
+		world.add_child(opponent)
+		opponent.setup({"id": "away-%d" % index, "jerseyNumber": str(index + 1), "team": "away"})
 
+func _add_ball() -> void:
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.16
-	sphere.height = 0.32
-	var ball_material := StandardMaterial3D.new()
-	ball_material.albedo_color = Color.WHITE
-	ball_material.albedo_texture = load("res://assets/volleyball.png")
-	ball_material.emission_enabled = true
-	ball_material.emission = Color("5c4b12")
-	sphere.material = ball_material
+	sphere.radius = 0.18
+	sphere.height = 0.36
+	sphere.radial_segments = 20
+	sphere.rings = 12
+	var skin := ShaderMaterial.new()
+	skin.shader = MATCH_BALL
+	sphere.material = skin
 	ball = MeshInstance3D.new()
 	ball.name = "MatchBall"
 	ball.mesh = sphere
-	add_child(ball)
-	built = true
-	_apply_at(roundi(time_ms))
+	world.add_child(ball)
 
-func _opponent_definitions() -> Array[Dictionary]:
-	return [
-		{"id": "o1", "jerseyNumber": "1", "role": "二传", "team": "away", "x": -2.6, "z": 2.2},
-		{"id": "o2", "jerseyNumber": "2", "role": "主攻", "team": "away", "x": 2.9, "z": 5.8},
-		{"id": "o3", "jerseyNumber": "3", "role": "副攻", "team": "away", "x": 0.0, "z": 2.0},
-		{"id": "o4", "jerseyNumber": "4", "role": "主攻", "team": "away", "x": -3.1, "z": 5.5},
-		{"id": "o5", "jerseyNumber": "5", "role": "接应", "team": "away", "x": 1.8, "z": 5.1},
-		{"id": "o6", "jerseyNumber": "6", "role": "自由人", "team": "away", "x": 2.9, "z": 7.4}
-	]
+	ball_marker = _add_floor_ring(0.245, Color("ffd873"))
+	landing_marker = _add_floor_ring(0.56, Color("ff654d"))
+
+func _add_floor_ring(radius: float, color: Color) -> MeshInstance3D:
+	var ring := TorusMesh.new()
+	ring.inner_radius = radius - 0.052
+	ring.outer_radius = radius
+	ring.rings = 18
+	ring.ring_segments = 5
+	var ring_material := StandardMaterial3D.new()
+	ring_material.albedo_color = color
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring.material = ring_material
+	var marker := MeshInstance3D.new()
+	marker.mesh = ring
+	marker.scale.y = 0.25
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(marker)
+	return marker
 
 func _build_hud() -> void:
 	hud = CanvasLayer.new()
 	hud.layer = 20
 	add_child(hud)
-	var top_panel := ColorRect.new()
-	top_panel.color = Color("fff6df")
-	top_panel.position = Vector2(0, 0)
-	top_panel.size = Vector2(1080, 154)
-	hud.add_child(top_panel)
-	var title := Label.new()
-	title.text = "球阵绘"
-	title.position = Vector2(24, 22)
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", Color("102b45"))
-	hud.add_child(title)
-	tactic_title_label = Label.new()
-	tactic_title_label.text = "当前战术 · 未命名战术"
-	tactic_title_label.position = Vector2(24, 76)
-	tactic_title_label.add_theme_font_size_override("font_size", 18)
-	tactic_title_label.add_theme_color_override("font_color", Color("ef755a"))
-	hud.add_child(tactic_title_label)
-	hud.add_child(_make_header_button("res://assets/ui/library.svg", "战术库", Vector2(700, 30), Vector2(150, 72), func(): editor_requested.emit()))
-	hud.add_child(_make_header_button("res://assets/ui/save.svg", "保存", Vector2(860, 30), Vector2(130, 72), func(): save_requested.emit()))
-	var control_panel := ColorRect.new()
-	control_panel.color = Color("fff6df")
-	control_panel.position = Vector2(0, 1605)
-	control_panel.size = Vector2(1080, 315)
-	hud.add_child(control_panel)
-	phase_label = Label.new()
-	phase_label.position = Vector2(32, 1620)
-	phase_label.add_theme_font_size_override("font_size", 18)
-	phase_label.add_theme_color_override("font_color", Color("18aeb4"))
-	hud.add_child(phase_label)
-	time_label = Label.new()
-	time_label.position = Vector2(900, 1616)
-	time_label.add_theme_font_size_override("font_size", 30)
-	time_label.add_theme_color_override("font_color", Color("102b45"))
-	hud.add_child(time_label)
-	var speed_label := Label.new()
-	speed_label.text = "路线由 2D 关键帧自动驱动"
-	speed_label.position = Vector2(32, 1662)
-	speed_label.add_theme_color_override("font_color", Color("102b45"))
-	speed_label.add_theme_font_size_override("font_size", 16)
-	hud.add_child(speed_label)
+	var layout := VBoxContainer.new()
+	hud.add_child(layout)
+	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layout.add_theme_constant_override("separation", 0)
+
+	var header := _panel(INK, 33, 24)
+	layout.add_child(header)
+	var heading := VBoxContainer.new()
+	heading.add_theme_constant_override("separation", 8)
+	header.add_child(heading)
+	var nav := _row()
+	heading.add_child(nav)
+	nav.add_child(_button("‹  返回 2D", func(): editor_requested.emit()))
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nav.add_child(spacer)
+	save_button = _button("保存", _save)
+	nav.add_child(save_button)
+
+	var heading_row := _row()
+	heading.add_child(heading_row)
+	var heading_label := _label("3D 战术回放", 58, WHITE)
+	heading_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading_row.add_child(heading_label)
+	heading_row.add_child(_team_label("我方", CYAN))
+	heading_row.add_child(_team_label("对方", CORAL))
+	title_label = _label("", 29, MIST)
+	title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	heading.add_child(title_label)
+
+	var screen := SubViewportContainer.new()
+	screen.stretch = true
+	screen.stretch_shrink = 2
+	screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(screen)
+	viewport_3d = SubViewport.new()
+	viewport_3d.own_world_3d = true
+	viewport_3d.msaa_3d = Viewport.MSAA_2X
+	screen.add_child(viewport_3d)
+	viewport_3d.size_changed.connect(_fit_camera)
+
+	var bottom := _panel(PANEL, 33, 24)
+	layout.add_child(bottom)
+	var controls := VBoxContainer.new()
+	controls.add_theme_constant_override("separation", 12)
+	bottom.add_child(controls)
+	var status := _row()
+	controls.add_child(status)
+	phase_label = _label("", 29, CYAN)
+	phase_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phase_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	status.add_child(phase_label)
+	time_label = _label("", 31, WHITE)
+	status.add_child(time_label)
+
 	timeline = HSlider.new()
-	timeline.position = Vector2(32, 1692)
-	timeline.size = Vector2(1016, 30)
-	timeline.step = 10.0
-	timeline.value_changed.connect(_on_timeline_changed)
-	hud.add_child(timeline)
-	hud.add_child(_make_icon_button("res://assets/ui/play.svg", "播放 / 暂停", Vector2(40, 1735), _toggle_play))
-	hud.add_child(_make_icon_button("res://assets/ui/restart.svg", "重播", Vector2(180, 1735), _restart))
-	hud.add_child(_make_icon_button("res://assets/ui/camera_top.svg", "顶视", Vector2(320, 1735), func(): _set_camera("top")))
-	hud.add_child(_make_icon_button("res://assets/ui/camera_oblique.svg", "斜上方", Vector2(460, 1735), func(): _set_camera("oblique")))
-	hud.add_child(_make_icon_button("res://assets/ui/camera_net.svg", "网侧", Vector2(600, 1735), func(): _set_camera("net")))
-	hud.add_child(_make_icon_button("res://assets/ui/back.svg", "返回 2D 编排", Vector2(900, 1735), func(): editor_requested.emit()))
+	timeline.custom_minimum_size.y = 64
+	timeline.step = 1.0
+	timeline.add_theme_stylebox_override("slider", _style(LINE, LINE, 7))
+	timeline.add_theme_stylebox_override("grabber_area", _style(CYAN, CYAN, 7))
+	timeline.add_theme_stylebox_override("grabber_area_highlight", _style(LIME, LIME, 7))
+	var handle_image := Image.create(22, 32, false, Image.FORMAT_RGBA8)
+	handle_image.fill(WHITE)
+	var handle := ImageTexture.create_from_image(handle_image)
+	timeline.add_theme_icon_override("grabber", handle)
+	timeline.add_theme_icon_override("grabber_highlight", handle)
+	timeline.value_changed.connect(_seek)
+	controls.add_child(timeline)
 
-func _make_button(text: String, position: Vector2, button_size: Vector2, callback: Callable) -> Button:
+	var transport := _row()
+	controls.add_child(transport)
+	play_button = _button("播放", _toggle_play, true)
+	play_button.size_flags_stretch_ratio = 2.1
+	transport.add_child(play_button)
+	transport.add_child(_button("重播", restart))
+	speed_button = _button("1×", _toggle_speed)
+	transport.add_child(speed_button)
+	var cameras := _row()
+	controls.add_child(cameras)
+	_add_camera_button(cameras, "斜上方", "oblique")
+	_add_camera_button(cameras, "顶视", "top")
+	_add_camera_button(cameras, "网侧", "net")
+
+func _panel(color: Color, inset: float, padding: float) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var style := _style(color, LINE)
+	style.content_margin_left = inset
+	style.content_margin_right = inset
+	style.content_margin_top = padding
+	style.content_margin_bottom = padding
+	panel.add_theme_stylebox_override("panel", style)
+	return panel
+
+func _row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	return row
+
+func _label(text: String, font_size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+func _team_label(text: String, color: Color) -> PanelContainer:
+	var badge := _panel(color.darkened(0.77), 19, 3)
+	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	badge.add_child(_label(text, 26, color))
+	return badge
+
+func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.position = position
-	button.size = button_size
-	button.add_theme_font_size_override("font_size", 20)
-	button.add_theme_stylebox_override("normal", _button_style(Color("f08a5d"), Color("ffd166")))
-	button.add_theme_stylebox_override("hover", _button_style(Color("ff9f68"), Color("fff0a8")))
-	button.add_theme_stylebox_override("pressed", _button_style(Color("d95f59"), Color("fff0a8")))
-	button.pressed.connect(callback)
-	hud.add_child(button)
-	return button
-
-func _make_header_button(icon_path: String, text: String, position: Vector2, button_size: Vector2, callback: Callable) -> Button:
-	var button := Button.new()
-	button.icon = load(icon_path)
-	button.text = text
-	button.position = position
-	button.size = button_size
-	button.add_theme_font_size_override("font_size", 18)
-	button.add_theme_color_override("font_color", Color("102b45"))
-	button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	button.add_theme_stylebox_override("hover", _icon_hover_style(Color(0.12, 0.68, 0.71, 0.2)))
-	button.add_theme_stylebox_override("pressed", _icon_hover_style(Color(0.94, 0.47, 0.36, 0.3)))
+	button.custom_minimum_size = Vector2(0, 104)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 31)
+	button.add_theme_color_override("font_color", INK if primary else WHITE)
+	button.add_theme_color_override("font_hover_color", INK if primary else CYAN)
+	button.add_theme_color_override("font_pressed_color", INK if primary else CYAN)
+	button.add_theme_stylebox_override("normal", _style(LIME if primary else PANEL, LIME if primary else LINE, 12))
+	button.add_theme_stylebox_override("hover", _style(LIME.lightened(0.20) if primary else Color("203453"), CYAN, 12))
+	button.add_theme_stylebox_override("pressed", _style(LIME.darkened(0.15) if primary else Color("203453"), CYAN, 12))
 	button.pressed.connect(callback)
 	return button
 
-func _make_icon_button(icon_path: String, tooltip: String, position: Vector2, callback: Callable) -> Button:
-	var button := Button.new()
-	button.icon = load(icon_path)
-	button.position = position
-	button.size = Vector2(104, 104)
-	button.tooltip_text = tooltip
-	button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	button.add_theme_stylebox_override("hover", _icon_hover_style(Color(0.12, 0.68, 0.71, 0.2)))
-	button.add_theme_stylebox_override("pressed", _icon_hover_style(Color(0.94, 0.47, 0.36, 0.3)))
-	button.pressed.connect(callback)
-	return button
-
-func _icon_hover_style(background: Color) -> StyleBoxFlat:
+func _style(color: Color, border: Color, radius: int = 0) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.corner_radius_top_left = 52
-	style.corner_radius_top_right = 52
-	style.corner_radius_bottom_left = 52
-	style.corner_radius_bottom_right = 52
-	return style
-
-func _button_style(background: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
+	style.bg_color = color
 	style.border_color = border
-	style.set_border_width_all(3)
-	style.corner_radius_top_left = 20
-	style.corner_radius_top_right = 20
-	style.corner_radius_bottom_left = 20
-	style.corner_radius_bottom_right = 20
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 5
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(radius)
+	style.content_margin_left = 14
+	style.content_margin_right = 14
 	return style
+
+func _add_camera_button(row: HBoxContainer, label: String, preset: String) -> void:
+	var button := _button(label, func(): _set_camera(preset))
+	button.toggle_mode = true
+	button.button_group = camera_buttons
+	button.button_pressed = preset == camera_mode
+	row.add_child(button)
 
 func _apply_at(value: int) -> void:
-	if tactic.is_empty() or not built:
-		return
-	var state := TacticEvaluator.evaluate_at(tactic, value)
+	var state := TacticEvaluator.evaluate_at(evaluated_tactic, value - lead_in_ms)
 	for player_state in state.players:
-		var player_id := str(player_state.get("player_id", ""))
-		if actors.has(player_id):
-			actors[player_id].apply_state(player_state)
-	ball.visible = bool(state.ball.get("active", false))
+		actors[player_state.player_id].apply_state(player_state)
+	ball.visible = bool(state.ball.active)
+	ball_marker.visible = ball.visible
+	landing_marker.visible = state.ball.has("landing")
+	if landing_marker.visible:
+		var target: Vector3 = state.ball.landing
+		landing_marker.position = Vector3(target.x, 0.032, target.z)
 	if ball.visible:
-		ball.position = state.ball.get("position", Vector3.ZERO)
-	if timeline:
-		timeline.max_value = duration_ms
-		timeline.set_value_no_signal(value)
-	if time_label:
-		time_label.text = "%02d:%03d" % [value / 1000, value % 1000]
-	if phase_label:
-		var phases: Array = tactic.get("phases", [])
-		if not phases.is_empty():
-			phase_label.text = "当前阶段  ·  " + str(phases[state.phase_index].get("label", ""))
+		ball.position = state.ball.position
+		ball.rotation = Vector3(float(value) * 0.005, float(value) * 0.007, 0.55)
+		ball_marker.position = Vector3(ball.position.x, 0.03, ball.position.z)
+	timeline.set_value_no_signal(value)
+	time_label.text = "%.2f / %.2f 秒" % [value / 1000.0, duration_ms / 1000.0]
+	var frame_text := "站位 %02d / %02d" % [int(state.frame_index) + 1, tactic.frames.size()]
+	var phases: Array = evaluated_tactic.get("phases", [])
+	var phase := str(phases[state.phase_index].get("label", "")) if not phases.is_empty() else ""
+	phase_label.text = frame_text if phase.is_empty() else "%s   ·   %s" % [frame_text, phase]
 
-func _toggle_play() -> void:
-	playing = not playing
-
-func _restart() -> void:
+func restart() -> void:
 	time_ms = 0.0
-	playing = true
+	_set_playing(true)
 	_apply_at(0)
 
-func _on_timeline_changed(value: float) -> void:
+func _toggle_play() -> void:
+	if time_ms >= duration_ms:
+		restart()
+	else:
+		_set_playing(not playing)
+
+func _set_playing(value: bool) -> void:
+	playing = value
+	play_button.text = "暂停" if playing else "播放"
+
+func _toggle_speed() -> void:
+	speed = 0.5 if speed == 1.0 else 1.0
+	speed_button.text = "0.5×" if speed == 0.5 else "1×"
+
+func _seek(value: float) -> void:
 	time_ms = value
-	playing = false
-	_apply_at(roundi(value))
+	_set_playing(false)
+	_apply_at(roundi(time_ms))
+
+func _save() -> void:
+	save_requested.emit()
+
+func show_save_result(error: Error) -> void:
+	save_button.text = "已保存" if error == OK else "保存失败"
 
 func _set_camera(preset: String) -> void:
-	if not camera:
+	camera_mode = preset
+	_fit_camera()
+
+func _fit_camera() -> void:
+	if not is_instance_valid(camera):
 		return
-	var position := Vector3(0, 18, -20)
-	if preset == "top":
-		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-		camera.size = 25.0
-		position = Vector3(0, 28, 0)
-	elif preset == "net":
-		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
-		camera.fov = 48.0
-		position = Vector3(-14, 6.5, -1.5)
-	else:
-		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
-		camera.fov = 46.0
-		position = Vector3(14, 15, -17)
-	camera.look_at_from_position(position, Vector3(0, 1.0, 0), Vector3.UP)
+	var eye := Vector3(9, 19, -24)
+	var up := Vector3.UP
+	match camera_mode:
+		"top":
+			eye = Vector3(0, 26, 0)
+			up = Vector3.FORWARD
+		"net":
+			eye = Vector3(20, 11, -8)
+	camera.look_at_from_position(eye, Vector3.ZERO, up)
+	var config: Dictionary = tactic.get("courtConfig", TacticModels.default_court())
+	var half_width := float(config.get("widthM", 9.0)) * 0.5
+	var half_length := float(config.get("lengthM", 18.0)) * 0.5
+	var inverse := camera.basis.inverse()
+	var low := Vector2(INF, INF)
+	var high := Vector2(-INF, -INF)
+	var corners: Array[Vector3] = []
+	for x in [-half_width, half_width]:
+		for z in [-half_length, half_length]:
+			corners.append(Vector3(x, 0, z))
+			corners.append(Vector3(x, 3.2, z))
+	if camera_mode == "oblique":
+		corners.append(Vector3(-4.2, 5.8, half_length + 6.6))
+		corners.append(Vector3(4.2, 5.8, half_length + 6.6))
+	for corner in corners:
+		var projected := inverse * corner
+		low = low.min(Vector2(projected.x, projected.y))
+		high = high.max(Vector2(projected.x, projected.y))
+	var center := (low + high) * 0.5
+	camera.h_offset = center.x
+	camera.v_offset = center.y
+	var aspect := float(viewport_3d.size.x) / maxf(1, viewport_3d.size.y)
+	var bounds := high - low
+	camera.size = maxf(bounds.y + 1.6, (bounds.x + 1.25) / maxf(aspect, 0.1))

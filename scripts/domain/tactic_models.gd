@@ -48,26 +48,22 @@ static func ensure_frames(tactic: Dictionary) -> Dictionary:
 		for frame in tactic.get("frames", []):
 			if not frame.has("ball"):
 				frame["ball"] = {"x": 0.0, "z": 0.0}
-			if not frame.has("routes"):
-				frame["routes"] = {}
+			frame.erase("routes")
 		return tactic
 	if str(tactic.get("id", "")) == "sample-three-receiver-fast-middle":
 		tactic["frames"] = _sample_frames()
-		for frame in tactic.frames:
-			frame["ball"] = {"x": 0.0, "z": 0.0}
-			frame["routes"] = {}
-		return tactic
+		return ensure_frames(tactic)
 	var positions := {}
 	for slot in tactic.get("initialFormation", []):
 		positions[str(slot.get("playerId", ""))] = {"x": float(slot.get("x", 0.0)), "z": float(slot.get("z", 0.0))}
-	tactic["frames"] = [{"id": "frame-0", "durationMs": 900, "positions": positions, "ball": {"x": 0.0, "z": 0.0}, "routes": {}}]
+	tactic["frames"] = [{"id": "frame-0", "durationMs": 900, "positions": positions, "ball": {"x": 0.0, "z": 0.0}}]
 	return tactic
 
 static func blank_tactic(title: String = "未命名战术") -> Dictionary:
 	var now := Time.get_datetime_string_from_system(true)
 	return {
 		"schemaVersion": 1,
-		"id": "tactic-%d" % Time.get_unix_time_from_system(),
+		"id": new_tactic_id("tactic"),
 		"title": title,
 		"notes": "",
 		"createdAt": now,
@@ -82,6 +78,9 @@ static func blank_tactic(title: String = "未命名战术") -> Dictionary:
 		"contactEvents": [],
 		"ballActions": []
 	}
+
+static func new_tactic_id(prefix: String) -> String:
+	return "%s-%s" % [prefix, Crypto.new().generate_random_bytes(12).hex_encode()]
 
 static func _sample_frames() -> Array[Dictionary]:
 	return [
