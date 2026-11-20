@@ -73,4 +73,5 @@ func _remember_open_tactic() -> void:
 
 func _on_viewport_resized() -> void:
 	if editor:
+		editor.refresh_safe_area()
 		editor.queue_redraw()

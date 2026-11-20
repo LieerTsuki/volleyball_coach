@@ -1,4 +1,4 @@
-# 球阵绘 · VolleySketch
+# VolleySketch
 
 Godot 4.x 离线排球教练战术板。项目使用竖屏 GDScript、Control、Node3D、Camera3D 和 JSON 存档，先在按真实 9m × 18m 比例缩小的 2D 球场中摆位，再用同一份数据驱动 3D 回放。
 
@@ -14,8 +14,8 @@ Godot 4.x 离线排球教练战术板。项目使用竖屏 GDScript、Control、
 - 2D 编辑器支持双击球员编辑。球员位置按相邻站位图和每帧时长插值，2D 和 3D 共用同一套米制坐标。
 - 每张站位图保存排球位置。未设置自定义动作时，排球按站位图位置或内置示例的预设球路播放。
 - 「战术库」可新建、打开和删除自定义战术。战术保存在 `user://tactics`，重启时直接恢复上次打开的战术。主存档缺失或损坏时会尝试读取上一次备份。
-- `assets/ui` 保存卡通文件夹、加号、球员、播放、删除和保存图标，应用图标为「球阵绘」专属排球吉祥物。
-- `scripts/presentation/tactic_replay_3d.gd` 提供木地板球馆、主客队球衣、跑步步态、时间轴、半速和三种机位。
+- `assets/ui` 保存卡通文件夹、加号、球员、播放、删除和保存图标，应用图标使用无白边的 VolleySketch 排球标识。
+- `assets/splash.png` 提供 VolleySketch 启动画面，`scripts/presentation/tactic_replay_3d.gd` 提供木地板球馆、我方球员、跑步步态、时间轴、半速和三种机位。
 - `scripts/main.gd` 在 2D 编排和 3D 回放之间切换，并保存同一个战术文档。
 - `export_presets.cfg` 已配置 Android ARM64 手机和 x86_64 模拟器导出目标。
 
@@ -43,7 +43,7 @@ cd D:\codex_work\coach
 .\tools\install-android-apk.ps1 -ApkPath 'D:\codex_work\coach\Builds\VolleyballCoach.apk'
 ```
 
-APK 输出到 `Builds/VolleyballCoach.apk`，版本为 `0.2.0`，用于本地安装验证。Android 手机需要打开开发者模式和 USB 调试。连接多个设备时，向安装脚本传入 `-Serial`，例如 `-Serial emulator-5554`。
+APK 输出到 `Builds/VolleyballCoach.apk`，版本为 `0.3.0`，用于本地安装验证。Android 手机需要打开开发者模式和 USB 调试。连接多个设备时，向安装脚本传入 `-Serial`，例如 `-Serial emulator-5554`。
 
 ## 测试重点
 

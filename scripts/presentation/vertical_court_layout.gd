@@ -19,12 +19,12 @@ func court_rect(viewport_size: Vector2, top_padding: float = 150.0, bottom_paddi
 
 func world_to_screen(position: Vector3, rect: Rect2) -> Vector2:
 	var x: float = rect.position.x + (position.x + COURT_WIDTH_M * 0.5) / COURT_WIDTH_M * rect.size.x
-	var y: float = rect.position.y + (position.z + COURT_LENGTH_M * 0.5) / COURT_LENGTH_M * rect.size.y
+	var y: float = rect.position.y + (COURT_LENGTH_M * 0.5 - position.z) / COURT_LENGTH_M * rect.size.y
 	return Vector2(x, y)
 
 func screen_to_world(screen_position: Vector2, rect: Rect2) -> Vector3:
 	var x: float = (screen_position.x - rect.position.x) / rect.size.x * COURT_WIDTH_M - COURT_WIDTH_M * 0.5
-	var z: float = (screen_position.y - rect.position.y) / rect.size.y * COURT_LENGTH_M - COURT_LENGTH_M * 0.5
+	var z: float = COURT_LENGTH_M * 0.5 - (screen_position.y - rect.position.y) / rect.size.y * COURT_LENGTH_M
 	return Vector3(clampf(x, -COURT_WIDTH_M * 0.5, COURT_WIDTH_M * 0.5), 0.0, clampf(z, -COURT_LENGTH_M * 0.5, COURT_LENGTH_M * 0.5))
 
 func attack_line_screen_y(rect: Rect2, side: int) -> float:

@@ -27,11 +27,34 @@ var player_name_input: LineEdit
 var library_list: VBoxContainer
 var player_role_input: OptionButton
 var rally_editor: RallyActionEditor
+var safe_frame: Control
+var content_root: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_layout()
+	call_deferred("_apply_safe_area")
 	set_process(true)
+
+func refresh_safe_area() -> void:
+	_apply_safe_area()
+
+func _apply_safe_area() -> void:
+	if not safe_frame:
+		return
+	var viewport_size := get_viewport_rect().size
+	var safe: Rect2 = DisplayServer.get_display_safe_area()
+	var top_inset := 20.0
+	if safe.end.y <= viewport_size.y + 1.0 and safe.position.y > top_inset:
+		top_inset = minf(safe.position.y, 44.0)
+	var left_inset := maxf(12.0, safe.position.x)
+	var right_inset := maxf(12.0, viewport_size.x - safe.end.x)
+	safe_frame.position = Vector2(left_inset, top_inset)
+	safe_frame.size = Vector2(maxf(240.0, viewport_size.x - left_inset - right_inset), maxf(480.0, viewport_size.y - top_inset))
+	for overlay in [rally_editor, library_overlay, player_overlay]:
+		if overlay:
+			overlay.position = safe_frame.position
+			overlay.size = safe_frame.size
 
 func _process(delta: float) -> void:
 	if not playing or tactic.is_empty() or not board:
@@ -52,7 +75,7 @@ func set_tactic(value: Dictionary) -> void:
 		board.set_tactic(tactic)
 		board.set_frame(selected_frame)
 	if title_label:
-		title_label.text = "球阵绘"
+		title_label.text = "VolleySketch"
 	if subtitle_label:
 		subtitle_label.text = "当前战术 · " + str(tactic.get("title", "未命名战术"))
 	_refresh_frame_strip()
@@ -65,10 +88,14 @@ func _build_layout() -> void:
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
 
-	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 0)
-	add_child(root)
+	safe_frame = Control.new()
+	safe_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(safe_frame)
+	content_root = VBoxContainer.new()
+	content_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content_root.add_theme_constant_override("separation", 0)
+	safe_frame.add_child(content_root)
+	var root := content_root
 
 	var header := PanelContainer.new()
 	header.custom_minimum_size = Vector2(0, 126)
@@ -81,7 +108,7 @@ func _build_layout() -> void:
 	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(title_box)
 	title_label = Label.new()
-	title_label.text = "球阵绘"
+	title_label.text = "VolleySketch"
 	title_label.add_theme_font_size_override("font_size", 30)
 	title_label.add_theme_color_override("font_color", Color("102b45"))
 	title_box.add_child(title_label)
@@ -372,6 +399,7 @@ func _open_rally_editor() -> void:
 		add_child(rally_editor)
 		rally_editor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		rally_editor.action_changed.connect(_on_rally_changed)
+		_apply_safe_area()
 	rally_editor.open_frame(tactic, selected_frame)
 
 func _on_rally_changed() -> void:
@@ -425,6 +453,7 @@ func _open_player_editor() -> void:
 	player_name_input.text = str(player.get("name", "球员"))
 	player_role_input.select(max(0, TacticModels.PLAYER_ROLES.find(str(player.get("role", "主攻")))))
 	player_overlay.visible = true
+	_apply_safe_area()
 	player_overlay.position = Vector2((size.x - player_overlay.size.x) * 0.5, (size.y - player_overlay.size.y) * 0.5)
 
 func _open_player_editor_by_id(player_id: String) -> void:
@@ -505,6 +534,7 @@ func _open_library() -> void:
 	_ensure_library_overlay()
 	_refresh_library()
 	library_overlay.visible = true
+	_apply_safe_area()
 
 func _ensure_library_overlay() -> void:
 	if library_overlay:

@@ -55,8 +55,8 @@ func _draw() -> void:
 	draw_line(Vector2(court_rect.position.x, court_layout.attack_line_screen_y(court_rect, 1)), Vector2(court_rect.end.x, court_layout.attack_line_screen_y(court_rect, 1)), Color("fff7e8"), 4.0)
 	draw_line(Vector2(court_rect.position.x, court_rect.position.y), Vector2(court_rect.end.x, court_rect.position.y), Color("fff7e8"), 4.0)
 	draw_line(Vector2(court_rect.position.x, court_rect.end.y), Vector2(court_rect.end.x, court_rect.end.y), Color("fff7e8"), 4.0)
-	draw_string(ThemeDB.fallback_font, court_rect.position + Vector2(18, 34), "我方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
-	draw_string(ThemeDB.fallback_font, Vector2(court_rect.position.x + 18, center_y + 34), "对方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+	draw_string(ThemeDB.fallback_font, court_rect.position + Vector2(18, 34), "对方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+	draw_string(ThemeDB.fallback_font, Vector2(court_rect.position.x + 18, center_y + 34), "我方场区", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
 	if not point_picker:
 		_draw_ball()
 	_draw_players()

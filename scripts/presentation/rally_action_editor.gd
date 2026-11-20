@@ -207,7 +207,7 @@ func _on_type_changed(_index: int) -> void:
 
 func _pick_point(value: Vector3) -> void:
 	if _type() == "Spike" and value.z <= 0.0:
-		status.text = "请点中线下方的对方场区"
+		status.text = "请点中线以上的对方场区"
 		return
 	if _type() != "Spike" and (_selected_id(target_input).is_empty() or frame_index + 1 >= tactic.frames.size()):
 		status.text = "需要先选择接球队员，并准备下一张站位图"

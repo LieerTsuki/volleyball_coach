@@ -38,6 +38,7 @@ var speed := 1.0
 var time_ms := 0.0
 var duration_ms := 1
 var lead_in_ms := 0
+var hud_safe_frame: Control
 
 func _ready() -> void:
 	_build_hud()
@@ -67,6 +68,7 @@ func _process(delta: float) -> void:
 
 func _sync_visibility() -> void:
 	hud.visible = is_visible_in_tree()
+	_apply_safe_area()
 	viewport_3d.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if hud.visible else SubViewport.UPDATE_DISABLED
 	if not hud.visible:
 		_set_playing(false)
@@ -110,21 +112,7 @@ func _rebuild_world() -> void:
 		world.add_child(actor)
 		actor.setup(definition)
 		actors[str(definition.id)] = actor
-	_add_opponents()
 	_add_ball()
-
-func _add_opponents() -> void:
-	var formation := [Vector2(-3.1, 1.55), Vector2(0.0, 1.85), Vector2(3.0, 1.55),
-		Vector2(-3.1, 6.2), Vector2(0.0, 7.4), Vector2(3.0, 6.2)]
-	var config: Dictionary = tactic.get("courtConfig", TacticModels.default_court())
-	var x_scale := float(config.get("widthM", 9.0)) / 9.0
-	var z_scale := float(config.get("lengthM", 18.0)) / 18.0
-	for index in range(formation.size()):
-		var slot: Vector2 = formation[index]
-		var opponent := PlayerActor.new()
-		opponent.position = Vector3(slot.x * x_scale, 0, slot.y * z_scale)
-		world.add_child(opponent)
-		opponent.setup({"id": "away-%d" % index, "jerseyNumber": str(index + 1), "team": "away"})
 
 func _add_ball() -> void:
 	var sphere := SphereMesh.new()
@@ -164,8 +152,11 @@ func _build_hud() -> void:
 	hud = CanvasLayer.new()
 	hud.layer = 20
 	add_child(hud)
+	hud_safe_frame = Control.new()
+	hud_safe_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(hud_safe_frame)
 	var layout := VBoxContainer.new()
-	hud.add_child(layout)
+	hud_safe_frame.add_child(layout)
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layout.add_theme_constant_override("separation", 0)
 
@@ -188,8 +179,7 @@ func _build_hud() -> void:
 	var heading_label := _label("3D 战术回放", 58, WHITE)
 	heading_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heading_row.add_child(heading_label)
-	heading_row.add_child(_team_label("我方", CYAN))
-	heading_row.add_child(_team_label("对方", CORAL))
+	heading_row.add_child(_team_label("我方球员", CYAN))
 	title_label = _label("", 29, MIST)
 	title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	heading.add_child(title_label)
@@ -247,6 +237,19 @@ func _build_hud() -> void:
 	_add_camera_button(cameras, "斜上方", "oblique")
 	_add_camera_button(cameras, "顶视", "top")
 	_add_camera_button(cameras, "网侧", "net")
+
+func _apply_safe_area() -> void:
+	if not hud_safe_frame or not is_inside_tree():
+		return
+	var viewport_size := get_viewport().get_visible_rect().size
+	var safe: Rect2 = DisplayServer.get_display_safe_area()
+	var top_inset := 20.0
+	if safe.end.y <= viewport_size.y + 1.0 and safe.position.y > top_inset:
+		top_inset = minf(safe.position.y, 44.0)
+	var left_inset := maxf(12.0, safe.position.x)
+	var right_inset := maxf(12.0, viewport_size.x - safe.end.x)
+	hud_safe_frame.position = Vector2(left_inset, top_inset)
+	hud_safe_frame.size = Vector2(maxf(240.0, viewport_size.x - left_inset - right_inset), maxf(480.0, viewport_size.y - top_inset))
 
 func _panel(color: Color, inset: float, padding: float) -> PanelContainer:
 	var panel := PanelContainer.new()
